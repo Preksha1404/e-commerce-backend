@@ -1,9 +1,15 @@
-from fastapi import FastAPI, Depends
-from sqlalchemy.orm import Session
+from fastapi import FastAPI
 from src.core.database import SessionLocal, engine, Base
-from src.models.users import User
+from src.api.endpoints import users, auth, sellers, admin
+from src.core.seed import seed_admin
+from contextlib import asynccontextmanager
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    seed_admin()
+    yield
+    
+app = FastAPI(lifespan=lifespan)
 
 # Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
@@ -21,10 +27,9 @@ def get_db():
 @app.get("/")
 def read_root():
     return {"message": "Hello, World!"}
-
-
-# Example route to test DB connection
-@app.get("/users")
-def get_users(db: Session = Depends(get_db)):
-    users = db.query(User).all()
-    return users
+    
+# Include routers
+app.include_router(users.router)
+app.include_router(auth.router)
+app.include_router(sellers.router)
+app.include_router(admin.router)
