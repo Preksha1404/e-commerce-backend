@@ -4,6 +4,8 @@ from src.api.endpoints import users, auth, sellers, admin
 from src.core.seed import seed_admin
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.requests import Request
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -26,6 +28,10 @@ app.add_middleware(
     allow_headers=["*"],             # Allow all headers
 )
 
+@app.options("/{rest_of_path:path}")
+async def preflight_handler(request: Request, rest_of_path: str):
+    return JSONResponse(content={"message": "OK"})
+                        
 # Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
 
