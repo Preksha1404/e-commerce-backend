@@ -3,6 +3,7 @@ from src.core.database import SessionLocal, engine, Base
 from src.api.endpoints import users, auth, sellers, admin
 from src.core.seed import seed_admin
 from contextlib import asynccontextmanager
+from fastapi.middleware.cors import CORSMiddleware
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -10,6 +11,20 @@ async def lifespan(app: FastAPI):
     yield
     
 app = FastAPI(lifespan=lifespan)
+
+origins = [
+    "http://localhost:5173/",
+    "https://ecommerce-eight-black.vercel.app/",
+]
+
+# Add middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,           # List of allowed origins
+    allow_credentials=True,          # Allow cookies / auth headers
+    allow_methods=["*"],             # Allow all HTTP methods
+    allow_headers=["*"],             # Allow all headers
+)
 
 # Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
