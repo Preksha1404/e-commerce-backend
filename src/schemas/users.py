@@ -51,3 +51,10 @@ class TokenData(BaseModel):
 class ChangePasswordRequest(BaseModel):
     old_password: str=Field(...)
     new_password: str=Field(...)
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str

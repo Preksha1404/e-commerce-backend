@@ -6,6 +6,8 @@ from fastapi import HTTPException, status
 import os
 from dotenv import load_dotenv
 from src.schemas.users import TokenData
+import secrets
+import hashlib
 
 load_dotenv()
 
@@ -62,3 +64,9 @@ def verify_token(token:str) -> TokenData:
                 detail="Could not verify creditials",
                 headers={"WWW-Authenticate":"Bearer"}
         )
+    
+def generate_reset_token() -> str:
+    return secrets.token_urlsafe(32) # Generate a secure random token
+
+def hash_token(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest() # Hash the token using SHA-256

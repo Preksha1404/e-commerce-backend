@@ -1,15 +1,16 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status, Cookie
+from fastapi import APIRouter, Depends, HTTPException, Response, status, Cookie, BackgroundTasks
 from fastapi.responses import JSONResponse
 import jwt
 from sqlalchemy.orm import Session
-from datetime import timedelta
+from datetime import timedelta, datetime
 from src.core.database import SessionLocal
 from src.models.users import User
-from src.schemas.users import UserLogin, UserResponse
-from src.utils.functions import verify_pwd, create_access_token, create_refresh_token,ACCESS_TOKEN_EXPIRE, REFRESH_TOKEN_EXPIRE
+from src.schemas.users import UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest
+from src.utils.functions import get_pwd_hash,verify_pwd, create_access_token, create_refresh_token,ACCESS_TOKEN_EXPIRE, REFRESH_TOKEN_EXPIRE, generate_reset_token, hash_token
 from src.utils.auth import get_current_active_user
 from dotenv import load_dotenv
 import os
+from src.utils.email import send_reset_email
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -106,7 +107,7 @@ def get_profile(current_user: User = Depends(get_current_active_user)):
 def refresh_token(
     response: Response,
     refresh_token: str = Cookie(None),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Missing refresh token")
@@ -130,3 +131,91 @@ def refresh_token(
     response.set_cookie("access_token", new_access_token, httponly=True)
 
     return {"access_token": new_access_token, "token_type": "bearer"}
+
+@router.post("/forget-password")
+async def forget_password(
+    request: ForgotPasswordRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    ):
+    """
+    Step 1: Request password reset
+    - Receives email
+    - Generates token
+    - Sends reset email
+    """
+    user = db.query(User).filter(User.email == request.email).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User with this email does not exist"
+        )
+    
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Inactive user account"
+        )
+    
+    reset_token = generate_reset_token()
+
+    hashed_token = hash_token(reset_token)
+    
+    user.reset_token = hashed_token
+    user.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
+    db.commit()
+
+    # Send reset email in background
+    await send_reset_email(request.email, reset_token, background_tasks)
+
+    return {
+        "message": "A reset link has been sent"
+    }
+
+@router.post("/reset-password")
+async def reset_password(
+    request: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+    ):
+    """
+    Step 2: Reset password with token
+    - Validates token
+    - Checks expiration
+    - Updates password
+    """
+    
+    # Hash the incoming token if you stored hashed tokens
+    hashed_token = hash_token(request.token)
+    
+    # Find user by token
+    user = db.query(User).filter(
+        User.reset_token == hashed_token
+    ).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired reset token"
+        )
+    
+    # Check if token is expired
+    if not user.reset_token_expires or user.reset_token_expires < datetime.utcnow():
+        raise HTTPException(
+            status_code=400,
+            detail="Reset token has expired"
+        )
+
+    # Update password
+    user.hashed_password = get_pwd_hash(request.new_password)
+    
+    # Clear reset token fields
+    user.reset_token = None
+    user.reset_token_expires = None
+    
+    db.commit()
+    db.refresh(user)
+    
+    return {
+        "message": "Password has been reset successfully",
+    }

@@ -1,6 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum
 from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
 import enum
 from src.core.database import Base
 
@@ -27,5 +26,7 @@ class User(Base):
     is_blocked = Column(Boolean, default=False)
     profile_picture = Column(String, nullable=True)
     refresh_token = Column(String, nullable=True)
+    reset_token = Column(String, nullable=True) # For password reset
+    reset_token_expires = Column(DateTime, nullable=True) # Expiry time for reset token
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
