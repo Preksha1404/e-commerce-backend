@@ -15,14 +15,14 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 origins = [
-    "http://localhost:5173/",
-    "https://ecommerce-eight-black.vercel.app/",
+    "http://localhost:5173",
+    "https://ecommerce-eight-black.vercel.app",
 ]
 
 # Add middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],             # List of allowed origins
+    allow_origins=origins,           # List of allowed origins
     allow_credentials=True,          # Allow cookies / auth headers
     allow_methods=["*"],             # Allow all HTTP methods
     allow_headers=["*"],             # Allow all headers

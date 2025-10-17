@@ -11,13 +11,19 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     full_name: str
-    profile_picture: Optional[str] = None
     phone: Optional[str] = None
 
 class SellerCreate(UserCreate):
     role: UserRole = Field(default=UserRole.SELLER)
     store_name: str
     store_address: str
+
+class User(BaseModel):
+    email: EmailStr
+    password: str
+    full_name: str
+    profile_picture: Optional[str] = None
+    phone: Optional[str] = None
 
 class UserResponse(BaseModel):
     id: int
