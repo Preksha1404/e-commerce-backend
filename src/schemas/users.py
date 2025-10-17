@@ -13,8 +13,6 @@ class UserCreate(BaseModel):
     full_name: str
     profile_picture: Optional[str] = None
     phone: Optional[str] = None
-    is_active: bool = True
-    is_blocked: bool = False
 
 class SellerCreate(UserCreate):
     role: UserRole = Field(default=UserRole.SELLER)
@@ -28,14 +26,16 @@ class UserResponse(BaseModel):
     phone: Optional[str] = None
     role: UserRole
     profile_picture: Optional[str] = None
-    store_name: Optional[str] = None
-    store_address: Optional[str] = None
     is_active: bool
     is_blocked: bool
     
     model_config = {
         "from_attributes": True
     }
+
+class SellerResponse(UserResponse):
+    store_name: Optional[str] = None
+    store_address: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: str

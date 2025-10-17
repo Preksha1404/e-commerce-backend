@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from datetime import timedelta, datetime
 from src.core.database import SessionLocal
 from src.models.users import User
-from src.schemas.users import UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest
+from src.schemas.users import UserLogin, UserResponse, ChangePasswordRequest,ForgotPasswordRequest, ResetPasswordRequest
 from src.utils.functions import get_pwd_hash,verify_pwd, create_access_token, create_refresh_token,ACCESS_TOKEN_EXPIRE, REFRESH_TOKEN_EXPIRE, generate_reset_token, hash_token
 from src.utils.auth import get_current_active_user
 from dotenv import load_dotenv
@@ -42,8 +42,7 @@ def login(
             headers={"WWW-Authenticate": "Bearer"},
         )
     
-    # Only allow customer and seller roles
-    if user.role not in ["customer", "seller"]:
+    if user.role not in ["customer", "seller", "admin"]:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not authorized to login here"
@@ -132,6 +131,38 @@ def refresh_token(
 
     return {"access_token": new_access_token, "token_type": "bearer"}
 
+@router.patch('/change-password', response_model=dict)
+def change_password(
+    request: ChangePasswordRequest,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    user=db.query(User).filter(User.id==current_user.id).first()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    if user.role == "admin":
+        raise HTTPException(status_code=403, detail="Admin users cannot change their password")
+    
+    # Access request attributes correctly
+    old_password = request.old_password
+    new_password = request.new_password
+
+    if not old_password or not new_password:
+        raise HTTPException(status_code=400, detail="Old and new passwords are required")
+
+    if not verify_pwd(old_password, user.hashed_password):
+        raise HTTPException(status_code=400, detail="Old password is incorrect")
+
+    # Update password
+    user.hashed_password = get_pwd_hash(new_password)
+    
+    db.commit()
+    db.refresh(user)
+
+    return {"message": "Password updated successfully"}
+
 @router.post("/forget-password")
 async def forget_password(
     request: ForgotPasswordRequest,
@@ -219,3 +250,18 @@ async def reset_password(
     return {
         "message": "Password has been reset successfully",
     }
+
+@router.post("/logout", response_model=dict)
+def logout(
+    response: Response,
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+    ):
+
+    current_user.refresh_token = None
+    db.commit()
+
+    response.delete_cookie(key="access_token")
+    response.delete_cookie(key="refresh_token")
+
+    return {"message": "Successfully logged out"}

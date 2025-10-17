@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from src.core.database import SessionLocal
 from src.models.users import User
-from src.schemas.users import UserCreate, UserResponse, ChangePasswordRequest
-from src.utils.functions import get_pwd_hash, verify_pwd
+from src.schemas.users import UserCreate, UserResponse
+from src.utils.functions import get_pwd_hash
 from src.utils.auth import get_current_active_user
+from fastapi.responses import JSONResponse
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -16,14 +17,30 @@ def get_db():
         db.close()
 
 @router.get("/")
-def get_users(db: Session = Depends(get_db)):
-    users = db.query(User).all()
+def get_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+    ):
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to view all users"
+        )
+    users = db.query(User).filter(User.role == "customer").all()
     return users
 
 @router.post("/register", response_model=UserResponse)
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
+
+    # Check if email already exists
     if db.query(User).filter(User.email == user.email).first():
-        raise HTTPException(status_code=400, detail="User already exists")
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "status": "error",
+                "message": "Email already exists"
+            }
+        )
     
     hashed_password = get_pwd_hash(user.password)
     
@@ -33,50 +50,10 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
         hashed_password=hashed_password,
         phone=user.phone,
         role="customer",
+        is_active=True,
+        is_blocked=False,
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     return new_user
-
-@router.patch('/change-password', response_model=dict)
-def change_password(
-    request: ChangePasswordRequest,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    user=db.query(User).filter(User.id==current_user.id).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-
-    # Access request attributes correctly
-    old_password = request.old_password
-    new_password = request.new_password
-
-    if not old_password or not new_password:
-        raise HTTPException(status_code=400, detail="Old and new passwords are required")
-
-    if not verify_pwd(old_password, current_user.hashed_password):
-        raise HTTPException(status_code=400, detail="Old password is incorrect")
-
-    # Update password
-    user.hashed_password = get_pwd_hash(new_password)
-    db.commit()
-    db.refresh(user)
-
-    return {"message": "Password updated successfully"}
-
-@router.post("/logout", response_model=dict)
-def user_logout(
-    response: Response,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-    ):
-
-    current_user.refresh_token = None
-    db.commit()
-
-    response.delete_cookie(key="access_token")
-    response.delete_cookie(key="refresh_token")
-    
-    return {"message": "Successfully logged out"}

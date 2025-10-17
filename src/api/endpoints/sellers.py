@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from src.core.database import SessionLocal
 from src.models.users import User
-from src.schemas.users import SellerCreate, UserResponse, ChangePasswordRequest
-from src.utils.functions import get_pwd_hash, verify_pwd
+from src.schemas.users import SellerCreate, SellerResponse
+from src.utils.functions import get_pwd_hash
 from src.utils.auth import get_current_active_user
+from fastapi.responses import JSONResponse
 
 router = APIRouter(prefix="/sellers", tags=["Sellers"])
 
@@ -15,14 +16,35 @@ def get_db():
     finally:
         db.close()
 
-@router.post("/register", response_model=UserResponse)
+@router.get("/")
+def get_sellers(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+    ):
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to view sellers"
+        )
+    sellers = db.query(User).filter(User.role == "seller").all()
+    return sellers
+
+@router.post("/register", response_model=SellerResponse)
 def register_seller(seller: SellerCreate, db: Session = Depends(get_db)):
+    
+    # Check if email already exists
     if db.query(User).filter(User.email == seller.email).first():
-        raise HTTPException(status_code=400, detail="Email already exists")
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={
+                "status": "error",
+                "message": "Email already exists"
+            }
+        )
     
     hashed_password = get_pwd_hash(seller.password)
     
-    new_user = User(
+    new_seller = User(
         email=seller.email,
         full_name=seller.full_name,
         hashed_password=hashed_password,
@@ -30,51 +52,10 @@ def register_seller(seller: SellerCreate, db: Session = Depends(get_db)):
         store_name=seller.store_name,
         store_address=seller.store_address,
         role="seller",
+        is_active=False,
+        is_blocked=False,
     )
-    db.add(new_user)
+    db.add(new_seller)
     db.commit()
-    db.refresh(new_user)
-    return new_user
-
-@router.patch('/change-password', response_model=dict)
-def change_password(
-    request: ChangePasswordRequest,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    user=db.query(User).filter(User.id==current_user.id).first()
-
-    if not user:
-        raise HTTPException(status_code=401, detail="Unauthorized")
-    
-    # Access request attributes correctly
-    old_password = request.old_password
-    new_password = request.new_password
-
-    if not old_password or not new_password:
-        raise HTTPException(status_code=400, detail="Old and new passwords are required")
-
-    if not verify_pwd(old_password, user.hashed_password):
-        raise HTTPException(status_code=400, detail="Old password is incorrect")
-
-    # Update password
-    user.hashed_password = get_pwd_hash(new_password)
-    db.commit()
-    db.refresh(user)
-
-    return {"message": "Password updated successfully"}
-
-@router.post("/logout", response_model=dict)
-def seller_logout(
-    response: Response,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-    ):
-
-    current_user.refresh_token = None
-    db.commit()
-
-    response.delete_cookie(key="access_token")
-    response.delete_cookie(key="refresh_token")
-
-    return {"message": "Successfully logged out"}
+    db.refresh(new_seller)
+    return new_seller
