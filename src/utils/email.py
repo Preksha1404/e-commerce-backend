@@ -43,8 +43,8 @@ async def send_reset_email(
         MAIL_FROM=os.getenv("MAIL_FROM"),
         MAIL_PORT=int(os.getenv("MAIL_PORT")),
         MAIL_SERVER=os.getenv("MAIL_SERVER"),
-        MAIL_STARTTLS=True,
-        MAIL_SSL_TLS=False,
+        MAIL_TLS = os.getenv("MAIL_TLS", "True").lower() == "true",
+        MAIL_SSL = os.getenv("MAIL_SSL", "False").lower() == "true",
         USE_CREDENTIALS=True,
     )
 
