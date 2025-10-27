@@ -30,3 +30,4 @@ httpx==0.28.1
 
 # Email Sending
 fastapi-mail==1.4.1
+sendgrid
