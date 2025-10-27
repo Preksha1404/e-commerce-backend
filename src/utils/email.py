@@ -1,5 +1,6 @@
 from fastapi import BackgroundTasks
-from fastapi_mail import FastMail, MessageSchema, ConnectionConfig
+from sendgrid import SendGridAPIClient
+from sendgrid.helpers.mail import Mail
 import os
 from dotenv import load_dotenv
 
@@ -7,13 +8,15 @@ load_dotenv()
 
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 RESET_TOKEN_EXPIRE_MINUTES = os.getenv("RESET_TOKEN_EXPIRE_MINUTES")
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
+MAIL_FROM = os.getenv("MAIL_FROM")
 
 async def send_reset_email(
     email: str,
     token: str,
-    background_tasks: BackgroundTasks,
+    background_tasks: BackgroundTasks
 ):
-    """Send password reset email using SendGrid SMTP"""
+    """Send password reset email using SendGrid Web API"""
 
     reset_link = f"{FRONTEND_URL}/reset-password?token={token}"
 
@@ -21,32 +24,28 @@ async def send_reset_email(
     <html>
         <body>
             <h2>Password Reset Request</h2>
-            <p>You requested to reset your password.</p>
-            <p>Click below to reset:</p>
-            <a href="{reset_link}">Reset Password</a>
+            <p>Click the button below to reset your password:</p>
+            <a href="{reset_link}" 
+                style="background:#007bff;color:white;padding:10px 20px;border-radius:5px;text-decoration:none;">
+                Reset Password
+            </a>
             <p>Expires in {RESET_TOKEN_EXPIRE_MINUTES} minutes.</p>
-            <p>If this isn't you, ignore this email.</p>
         </body>
     </html>
     """
 
-    message = MessageSchema(
-        subject="Password Reset Request",
-        recipients=[email],
-        body=html_content,
-        subtype="html"
+    message = Mail(
+        from_email=MAIL_FROM,
+        to_emails=email,
+        subject="Password Reset",
+        html_content=html_content
     )
 
-    mail_conf = ConnectionConfig(
-        MAIL_USERNAME=os.getenv("MAIL_USERNAME"),
-        MAIL_PASSWORD=os.getenv("MAIL_PASSWORD"),
-        MAIL_FROM=os.getenv("MAIL_FROM"),
-        MAIL_PORT=int(os.getenv("MAIL_PORT")),
-        MAIL_SERVER=os.getenv("MAIL_SERVER"),
-        MAIL_TLS = os.getenv("MAIL_TLS", "True").lower() == "true",
-        MAIL_SSL = os.getenv("MAIL_SSL", "False").lower() == "true",
-        USE_CREDENTIALS=True,
-    )
+    def send_email():
+        try:
+            sg = SendGridAPIClient(SENDGRID_API_KEY)
+            sg.send(message)
+        except Exception as e:
+            print("SendGrid Error:", e)
 
-    fm = FastMail(mail_conf)
-    background_tasks.add_task(fm.send_message, message)
+    background_tasks.add_task(send_email)
