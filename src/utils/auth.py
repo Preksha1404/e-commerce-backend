@@ -13,7 +13,7 @@ def get_db():
 
 # Auth Dependencies
 def get_current_user(
-    access_token: str = Cookie(None),
+    access_token: str = Cookie(...),
     db: Session = Depends(get_db)
 ):
     token_data = verify_token(access_token)
@@ -22,7 +22,7 @@ def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User does not exist",
-            headers={"WWW-Authenticate":"Bearer"}
+            headers={"WWW-Authenticate": "Bearer"}
         )
     return user
 
