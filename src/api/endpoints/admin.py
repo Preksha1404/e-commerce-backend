@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Response
 from sqlalchemy.orm import Session
 from src.core.database import SessionLocal
-from src.models.users import User
+from src.models.user import User
 from src.schemas.users import UserLogin, UserResponse
 from src.utils.functions import verify_pwd, create_access_token, ACCESS_TOKEN_EXPIRE
 from datetime import timedelta
@@ -16,7 +16,7 @@ def get_db():
         db.close()
 
 # Admin Login
-@router.post("/login")
+@router.post("/login") 
 def admin_login(credentials: UserLogin,
     db: Session = Depends(get_db),
     response: Response = None):

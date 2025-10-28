@@ -1,5 +1,5 @@
 from src.core.database import SessionLocal
-from src.models.users import User
+from src.models.user import User
 from src.utils.functions import get_pwd_hash
 from fastapi import HTTPException
 import os

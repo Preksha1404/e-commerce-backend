@@ -14,7 +14,6 @@ app = FastAPI(lifespan=lifespan)
 # Create tables if they don't exist
 Base.metadata.create_all(bind=engine)
 
-
 # Dependency to get DB session
 def get_db():
     db = SessionLocal()
