@@ -44,7 +44,7 @@ class SellerResponse(UserResponse):
     store_address: Optional[str] = None
 
 class UserLogin(BaseModel):
-    email: str
+    email: EmailStr
     password: str
 
 class Token(BaseModel):

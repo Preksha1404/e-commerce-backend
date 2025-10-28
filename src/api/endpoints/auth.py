@@ -105,7 +105,7 @@ def get_profile(current_user: User = Depends(get_current_active_user)):
 @router.post("/refresh")
 def refresh_token(
     response: Response,
-    refresh_token: str = Cookie(...),
+    refresh_token: str = Cookie(...,include_in_schema=False),
     db: Session = Depends(get_db),
 ):
     if not refresh_token:
