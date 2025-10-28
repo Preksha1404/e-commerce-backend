@@ -1,5 +1,6 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum
 from sqlalchemy.sql import func
+from sqlalchemy.orm import relationship
 import enum
 from src.core.database import Base
 
@@ -30,3 +31,6 @@ class User(Base):
     reset_token_expires = Column(DateTime, nullable=True) # Expiry time for reset token
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    
+    # Relationships
+    products = relationship("src.models.products.Product", back_populates="seller", lazy="dynamic")
