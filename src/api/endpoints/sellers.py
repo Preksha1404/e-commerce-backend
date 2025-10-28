@@ -59,3 +59,69 @@ def register_seller(seller: SellerCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_seller)
     return new_seller
+
+@router.get("/{seller_id}", response_model=SellerResponse)
+def get_seller(
+    seller_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+    ):
+
+    if current_user.role != "admin" and current_user.id != seller_id:
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to view this seller"
+        )
+    
+    seller = db.query(User).filter(User.id == seller_id, User.role == "seller").first()
+
+    if not seller:
+        raise HTTPException(
+            status_code=404,
+            detail="Seller not found"
+        )
+    
+    return seller
+
+@router.patch("/{seller_id}/status", response_model=SellerResponse)
+def update_seller_status(
+    seller_id: int,
+    status: str,  # values: "approved" | "rejected" | "pending"
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Not authorized to update seller status"
+        )
+    
+    seller = db.query(User).filter(User.id == seller_id, User.role == "seller").first()
+
+    if not seller:
+        raise HTTPException(
+            status_code=404,
+            detail="Seller not found"
+        )
+    
+    if status == "approved":
+        seller.is_active = True
+        seller.is_blocked = False
+
+    elif status == "rejected":
+        seller.is_active = False
+        seller.is_blocked = True
+
+    elif status == "pending":
+        seller.is_active = False
+        seller.is_blocked = False
+
+    else:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid status value"
+        )
+    
+    db.commit()
+    db.refresh(seller)
+    return seller
