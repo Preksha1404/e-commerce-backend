@@ -82,7 +82,7 @@ def login(
         key="access_token",
         value=access_token,
         httponly=True,
-        samesite="lax",
+        samesite="None",
         secure=True,
         max_age=ACCESS_TOKEN_EXPIRE * 60
     )
@@ -91,7 +91,7 @@ def login(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        samesite="lax",
+        samesite="None",
         secure=True,
         max_age=REFRESH_TOKEN_EXPIRE * 24 * 60 * 60
     )
