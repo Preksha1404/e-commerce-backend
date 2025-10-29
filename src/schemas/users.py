@@ -1,4 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field
+from pydantic_extra_types.phone_numbers import PhoneNumber
 from typing import Optional
 from enum import Enum
 
@@ -11,7 +12,7 @@ class UserCreate(BaseModel):
     email: EmailStr
     password: str
     full_name: str
-    phone: Optional[str] = None
+    phone: PhoneNumber
 
 class SellerCreate(UserCreate):
     role: UserRole = Field(default=UserRole.SELLER)
@@ -23,13 +24,13 @@ class User(BaseModel):
     password: str
     full_name: str
     profile_picture: Optional[str] = None
-    phone: Optional[str] = None
+    phone: PhoneNumber
 
 class UserResponse(BaseModel):
     id: int
     full_name: str
     email: EmailStr
-    phone: Optional[str] = None
+    phone: Optional[PhoneNumber] = None
     role: UserRole
     profile_picture: Optional[str] = None
     is_active: bool
@@ -52,7 +53,7 @@ class Token(BaseModel):
     token_type: str
 
 class TokenData(BaseModel):
-    email: Optional[str] = None
+    email: EmailStr | None = None
 
 class ChangePasswordRequest(BaseModel):
     old_password: str=Field(...)
