@@ -40,3 +40,16 @@ class Product(Base):
     # Relationships
     category = relationship("src.models.products.Category", back_populates="products")
     seller = relationship("src.models.users.User", back_populates="products")
+    images = relationship("ProductImage", back_populates="product")
+
+class ProductImage(Base):
+    __tablename__ = "product_images"
+
+    id = Column(Integer, primary_key=True, index=True)
+    product_id = Column(Integer, ForeignKey('products.id'), nullable=False)
+    url = Column(Text, nullable=False)
+    position = Column(Integer, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+    # Relationships
+    product = relationship("Product", back_populates="images")

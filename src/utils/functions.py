@@ -70,3 +70,14 @@ def generate_reset_token() -> str:
 
 def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest() # Hash the token using SHA-256
+
+def generate_slug(text: str) -> str:
+    """Generate a URL-friendly slug from text"""
+    # Convert to lowercase and replace spaces with hyphens
+    slug = text.lower().strip().replace(' ', '-')
+    # Remove special characters
+    slug = ''.join(c for c in slug if c.isalnum() or c == '-')
+    # Remove multiple consecutive hyphens
+    while '--' in slug:
+        slug = slug.replace('--', '-')
+    return slug

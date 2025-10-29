@@ -1,6 +1,6 @@
 from fastapi import FastAPI
-from src.core.database import SessionLocal, engine, Base
-from src.api.endpoints import users, auth, sellers, profile
+from src.core.database import engine, Base
+from src.api.endpoints import users, auth, sellers, products, profile
 from src.core.seed import seed_admin
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,13 +36,7 @@ async def preflight_handler(request: Request, rest_of_path: str):
 Base.metadata.create_all(bind=engine)
 
 
-# Dependency to get DB session
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+# (get_db is provided by src.core.database)
 
 
 @app.get("/")
@@ -54,3 +48,4 @@ app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(sellers.router)
 app.include_router(profile.router)
+app.include_router(products.router)

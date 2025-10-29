@@ -30,7 +30,6 @@ httpx==0.28.1
 
 # Email Sending
 fastapi-mail==1.4.1
-sendgrid
 
 # Additional Types
 pydantic-extra-types
@@ -38,3 +37,7 @@ phonenumbers==9.0.17
 
 # Cloudinary for image handling
 cloudinary==1.44.1
+# Data Processing
+pandas==2.1.2
+openpyxl==3.1.2  # For Excel support
+sendgrid
