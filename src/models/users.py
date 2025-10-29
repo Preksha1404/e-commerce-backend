@@ -23,6 +23,7 @@ class User(Base):
     role = Column(Enum(UserRole), default=UserRole.CUSTOMER, nullable=False)
     store_name = Column(String, nullable=True)  # Only for sellers
     store_address = Column(String, nullable=True)  # Only for sellers
+    store_description = Column(String, nullable=True)  # Only for sellers
     is_active = Column(Boolean, default=True)
     is_blocked = Column(Boolean, default=False)
     profile_picture = Column(String, nullable=True)

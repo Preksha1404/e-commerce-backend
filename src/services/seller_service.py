@@ -1,9 +1,10 @@
 from sqlalchemy.orm import Session
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 from src.models.users import User
-from src.schemas.users import SellerCreate
+from src.schemas.users import SellerCreate, SellerUpdate
 from src.utils.functions import get_pwd_hash
+from src.utils.email import send_seller_verification_email
 
 class SellerService:
     @staticmethod
@@ -37,6 +38,7 @@ class SellerService:
             phone=seller.phone,
             store_name=seller.store_name,
             store_address=seller.store_address,
+            store_description=seller.store_description,
             role="seller",
             is_active=False,
             is_blocked=False,
@@ -94,6 +96,58 @@ class SellerService:
             raise HTTPException(
                 status_code=400,
                 detail="Invalid status value"
+            )
+
+        db.commit()
+        db.refresh(seller)
+        return seller
+    
+    @staticmethod
+    async def update_seller(db: Session, seller_id: int, seller_update: SellerUpdate, current_user: User, background_tasks: BackgroundTasks):
+        """Seller updates their own profile."""
+        if current_user.id != seller_id or current_user.role != "seller":
+            raise HTTPException(
+                status_code=403,
+                detail="Not authorized to update this seller"
+            )
+
+        seller = db.query(User).filter(User.id == seller_id, User.role == "seller").first()
+        if not seller:
+            raise HTTPException(
+                status_code=404,
+                detail="Seller not found"
+            )
+
+        # Track old data
+        old_store_name = seller.store_name
+        old_store_address = seller.store_address
+        old_store_description = seller.store_description
+
+        # Update fields
+        seller.full_name = seller_update.full_name or seller.full_name
+        seller.phone = seller_update.phone or seller.phone
+        seller.store_name = seller_update.store_name or seller.store_name
+        seller.store_address = seller_update.store_address or seller.store_address
+        seller.store_description = seller_update.store_description or seller.store_description
+
+        # Detect if business info changed
+        business_changed = (
+            (seller_update.store_name and seller_update.store_name != old_store_name)
+            or (seller_update.store_address and seller_update.store_address != old_store_address)
+            or (seller_update.store_description and seller_update.store_description != old_store_description)
+        )
+
+        if business_changed:
+            seller.is_active = False # Deactivate account
+
+            # Send verification email
+            await send_seller_verification_email(
+                email=seller.email,
+                full_name=seller.full_name,
+                store_name=seller.store_name,
+                store_address=seller.store_address,
+                store_description=seller.store_description or "",
+                background_tasks=background_tasks
             )
 
         db.commit()

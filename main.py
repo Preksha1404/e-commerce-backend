@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from src.core.database import SessionLocal, engine, Base
-from src.api.endpoints import users, auth, sellers
+from src.api.endpoints import users, auth, sellers, profile
 from src.core.seed import seed_admin
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
@@ -53,3 +53,4 @@ def read_root():
 app.include_router(users.router)
 app.include_router(auth.router)
 app.include_router(sellers.router)
+app.include_router(profile.router)

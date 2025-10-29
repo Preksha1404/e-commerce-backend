@@ -18,6 +18,18 @@ class SellerCreate(UserCreate):
     role: UserRole = Field(default=UserRole.SELLER)
     store_name: str
     store_address: str
+    store_description: Optional[str] = None
+
+class UserUpdate(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[PhoneNumber] = None
+
+class SellerUpdate(BaseModel):
+    full_name: Optional[str] = None
+    phone: Optional[PhoneNumber] = None
+    store_name: Optional[str] = None
+    store_address: Optional[str] = None
+    store_description: Optional[str] = None
 
 class User(BaseModel):
     email: EmailStr
@@ -43,6 +55,7 @@ class UserResponse(BaseModel):
 class SellerResponse(UserResponse):
     store_name: Optional[str] = None
     store_address: Optional[str] = None
+    store_description: Optional[str] = None
 
 class UserLogin(BaseModel):
     email: EmailStr
