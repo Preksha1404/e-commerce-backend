@@ -2,18 +2,11 @@ from fastapi import Depends, HTTPException, status, Cookie
 from sqlalchemy.orm import Session
 from src.models.users import User
 from src.utils.functions import verify_token
-from src.core.database import SessionLocal
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+from src.core.database import get_db
 
 # Auth Dependencies
 def get_current_user(
-    access_token: str = Cookie(...,include_in_schema=False),
+    access_token: str = Cookie(...),
     db: Session = Depends(get_db)
 ):
     token_data = verify_token(access_token)
