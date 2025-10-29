@@ -1,11 +1,11 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Enum
 from sqlalchemy.sql import func
 import enum
-from src.core.database import Base  # make sure this is correct path
+from src.core.database import Base  # make sure this is correct path 
 
 # User roles
 class UserRole(str, enum.Enum):
-    ADMIN = "admin"
+    ADMIN = "admin" 
     SELLER = "seller"
     CUSTOMER = "customer"
 

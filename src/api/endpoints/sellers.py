@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy.orm import Session
 from src.core.database import SessionLocal
-from src.models.users import User
+from src.models.user import User
 from src.schemas.users import SellerCreate, UserResponse, ChangePasswordRequest
 from src.utils.functions import get_pwd_hash, verify_pwd
 from src.utils.auth import get_current_active_user

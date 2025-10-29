@@ -1,6 +1,6 @@
 from fastapi import Depends, HTTPException, status, Cookie
 from sqlalchemy.orm import Session
-from src.models.users import User
+from src.models import user
 from src.utils.functions import verify_token
 from src.core.database import SessionLocal
 
@@ -17,7 +17,7 @@ def get_current_user(
     db: Session = Depends(get_db)
 ):
     token_data = verify_token(access_token)
-    user = db.query(User).filter(User.email == token_data.email).first()
+    user = db.query(user).filter(user.email == token_data.email).first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -26,7 +26,7 @@ def get_current_user(
         )
     return user
 
-def get_current_active_user(current_user: User = Depends(get_current_user)):
+def get_current_active_user(current_user: user = Depends(get_current_user)):
     if not current_user.is_active:
         raise HTTPException(
             status_code=404,

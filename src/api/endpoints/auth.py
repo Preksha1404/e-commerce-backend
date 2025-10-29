@@ -4,7 +4,7 @@ import jwt
 from sqlalchemy.orm import Session
 from datetime import timedelta, datetime
 from src.core.database import SessionLocal
-from src.models.user import User
+from src.models.user import User 
 from src.schemas.users import UserLogin, UserResponse, ForgotPasswordRequest, ResetPasswordRequest
 from src.utils.functions import get_pwd_hash,verify_pwd, create_access_token, create_refresh_token,ACCESS_TOKEN_EXPIRE, REFRESH_TOKEN_EXPIRE, generate_reset_token, hash_token
 from src.utils.auth import get_current_active_user
