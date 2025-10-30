@@ -1,14 +1,26 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status
+from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from src.core.database import get_db
 from src.models.users import User
 from src.utils.auth import get_current_active_user
-from src.utils.bulk_upload import process_upload_file, validate_row, save_products_batch
+from src.utils.bulk_upload import process_upload_file, validate_row, save_products_batch, generate_bulk_upload_template
 from src.schemas.products import BulkUploadResponse, BulkUploadRow
 from typing import List
 import pandas as pd
 
 router = APIRouter(prefix="/products", tags=["Products"])
+
+@router.get("/bulk-upload/template")
+def download_bulk_upload_template():
+    template = generate_bulk_upload_template()
+    return Response(
+        content=template,
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": "attachment; filename=bulk_upload_template.csv"
+        }
+    )
 
 @router.post("/bulk-upload", response_model=BulkUploadResponse)
 async def bulk_upload_products(
