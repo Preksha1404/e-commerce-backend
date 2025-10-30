@@ -5,7 +5,7 @@ from fastapi import UploadFile
 import logging
 from sqlalchemy.orm import Session
 from src.models.products import Product, Category, ProductImage
-from src.utils.functions import generate_slug
+from src.utils.functions import generate_slug, generate_simple_sku
 import io
 
 logger = logging.getLogger(__name__)
@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)
 def generate_bulk_upload_template() -> str:
     """Generate a sample CSV template for bulk product upload."""
     header = (
-        "name,description,price,discount_price,stock,sku,category_id,is_active,is_featured,images\n"
+        "name,description,price,stock,category,images\n"
     )
     sample_row = (
-        "Wireless Mouse,Ergonomic 2.4G mouse,19.99,14.99,120,WM-1001,3,true,false,https://img.example.com/mouse1.jpg|https://img.example.com/mouse2.jpg\n"
+        "Wireless Mouse,Ergonomic 2.4G mouse,19.99,120,Electronics,https://img.example.com/mouse1.jpg|https://img.example.com/mouse2.jpg\n"
     )
     return header + sample_row
 
@@ -32,27 +32,32 @@ async def process_upload_file(file: UploadFile, seller_id: int) -> pd.DataFrame:
         raise ValueError("Unsupported file format. Please upload CSV or Excel file.")
 
 def validate_row(row: Dict[str, Any], row_number: int) -> Tuple[bool, BulkUploadRow]:
-    """Validate a single row of product data"""
+    """Validate a single row of product data.
+    Expects: name, description, price, stock, category, images
+    """
     try:
-        # Convert row to ProductCreate schema
         product_data = {
             "name": str(row.get("name", "")),
             "description": str(row.get("description", "")),
             "price": float(row.get("price", 0)),
-            "discount_price": float(row.get("discount_price", 0)) if pd.notna(row.get("discount_price")) else None,
             "stock": int(row.get("stock", 0)),
-            "sku": str(row.get("sku", "")),
-            "category_id": int(row.get("category_id", 0)),
-            "is_active": bool(row.get("is_active", True)),
-            "is_featured": bool(row.get("is_featured", False)),
-            "images": str(row.get("images", "")).split("|") if pd.notna(row.get("images")) else []
+            "category": str(row.get("category", "")),
+            "images": str(row.get("images", "")).split("|") if pd.notna(row.get("images")) else [],
         }
-        
-        # Validate using Pydantic model
-        product = ProductCreate(**product_data)
-        
+
+        # Basic require check
+        required = ["name", "description", "price", "stock", "category"]
+        for field in required:
+            val = product_data[field]
+            if isinstance(val, (str, list)) and not val:
+                raise ValueError(f"Missing required field: {field}")
+        # (images can be empty list)
+
+        # Accept category as string, resolve in DB later
+
+        # No Pydantic model for category string; use a generic container
         return True, BulkUploadRow(
-            **product.model_dump(),
+            **product_data,
             row_number=row_number,
             status="success"
         )
@@ -74,57 +79,47 @@ def save_products_batch(
     """Save validated products to database in batches"""
     success_records = []
     error_records = []
-    
-    # Process in batches
     for i in range(0, len(products), batch_size):
         batch = products[i:i + batch_size]
         try:
-            # Create Product instances while validating category and SKU
             db_products = []
             inserted_rows = []
             for p in batch:
-                # Validate category exists
-                category = db.query(Category).filter(Category.id == p.category_id).first()
+                # Lookup category name to get id
+                category = db.query(Category).filter(Category.name == p.category).first()
                 if not category:
                     p.status = "error"
-                    p.error_message = f"Category id {p.category_id} does not exist"
+                    p.error_message = f"Category '{p.category}' does not exist"
                     error_records.append(p)
                     continue
-
-                # Check if SKU already exists
-                existing_product = db.query(Product).filter(Product.sku == p.sku).first()
-                if existing_product:
-                    p.status = "error"
-                    p.error_message = f"SKU {p.sku} already exists"
-                    error_records.append(p)
-                    continue
-
-                product_dict = p.model_dump().copy()
-                # remove metadata fields if present
-                product_dict.pop('row_number', None)
-                product_dict.pop('error_message', None)
-                product_dict.pop('status', None)
-
-                # Extract images from product_dict
-                images = product_dict.pop('images', [])
-                
+                # Compose product_dict (must match Product model)
+                sku = generate_simple_sku(p.name)
+                product_dict = {
+                    "name": p.name,
+                    "description": p.description,
+                    "price": p.price,
+                    "stock": p.stock,
+                    "sku": sku,
+                    "category_id": category.id,
+                    "is_active": True,
+                    "is_featured": False,
+                    "discount_price": None
+                }
+                images = p.images if hasattr(p, "images") else []
                 db_prod = Product(
-                    **product_dict,
+                    **{k: v for k, v in product_dict.items() if k in Product.__table__.columns.keys()},
                     seller_id=seller_id,
                     slug=generate_slug(p.name)
                 )
-                
                 # Create product images
                 for position, image_url in enumerate(images):
-                    if image_url.strip():  # Only create if URL is not empty
+                    if image_url.strip():
                         db_prod.images.append(ProductImage(
                             url=image_url.strip(),
                             position=position
                         ))
                 db_products.append(db_prod)
                 inserted_rows.append(p)
-
-            # Insert using ORM so related images are persisted via cascade
             if db_products:
                 db.add_all(db_products)
                 db.commit()
@@ -137,5 +132,4 @@ def save_products_batch(
                 product.error_message = str(e)
             error_records.extend(batch)
             db.rollback()
-    
     return success_records, error_records
