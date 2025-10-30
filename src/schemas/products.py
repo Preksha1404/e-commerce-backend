@@ -5,15 +5,17 @@ from decimal import Decimal
 
 class ProductCreate(BaseModel):
     name: str
-    description: Optional[str] = None
+    description: str
     price: Decimal = Field(ge=0)
-    discount_price: Optional[Decimal] = Field(default=None, ge=0)
     stock: int = Field(ge=0)
-    sku: str
-    category_id: int
-    is_active: bool = True
-    is_featured: bool = False
-    images: Optional[List[str]] = Field(default_factory=list)  # List of image URLs
+    category: str
+    images: List[str] = Field(default_factory=list)  # List of image URLs
+    # Optional fields
+    sku: Optional[str] = None
+    category_id: Optional[int] = None
+    discount_price: Optional[Decimal] = Field(default=None, ge=0)
+    is_active: Optional[bool] = True
+    is_featured: Optional[bool] = False
 
 class BulkUploadRow(ProductCreate):
     row_number: int

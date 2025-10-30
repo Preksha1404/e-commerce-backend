@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)
 def generate_bulk_upload_template() -> str:
     """Generate a sample CSV template for bulk product upload."""
     header = (
-        "name,description,price,discount_price,stock,sku,category_id,is_active,is_featured,images\n"
+        "name,description,price,stock,category,images\n"
     )
     sample_row = (
-        "Wireless Mouse,Ergonomic 2.4G mouse,19.99,14.99,120,WM-1001,3,true,false,https://img.example.com/mouse1.jpg|https://img.example.com/mouse2.jpg\n"
+        "Wireless Mouse,Ergonomic 2.4G mouse,19.99,120,Electronics,https://img.example.com/mouse1.jpg|https://img.example.com/mouse2.jpg\n"
     )
     return header + sample_row
 
@@ -32,25 +32,34 @@ async def process_upload_file(file: UploadFile, seller_id: int) -> pd.DataFrame:
         raise ValueError("Unsupported file format. Please upload CSV or Excel file.")
 
 def validate_row(row: Dict[str, Any], row_number: int) -> Tuple[bool, BulkUploadRow]:
-    """Validate a single row of product data"""
+    """Validate a single row of product data with updated required fields."""
     try:
         # Convert row to ProductCreate schema
         product_data = {
             "name": str(row.get("name", "")),
             "description": str(row.get("description", "")),
             "price": float(row.get("price", 0)),
-            "discount_price": float(row.get("discount_price", 0)) if pd.notna(row.get("discount_price")) else None,
             "stock": int(row.get("stock", 0)),
+            "category": str(row.get("category", "")),
+            "images": str(row.get("images", "")).split("|") if pd.notna(row.get("images")) else [],
+            # Optional fields with defaults or None:
+            "discount_price": float(row.get("discount_price", 0)) if pd.notna(row.get("discount_price")) else None,
             "sku": str(row.get("sku", "")),
-            "category_id": int(row.get("category_id", 0)),
-            "is_active": bool(row.get("is_active", True)),
-            "is_featured": bool(row.get("is_featured", False)),
-            "images": str(row.get("images", "")).split("|") if pd.notna(row.get("images")) else []
+            "category_id": int(row.get("category_id", 0)) if row.get("category_id") else None,
+            "is_active": bool(row.get("is_active", True)) if row.get("is_active") is not None else True,
+            "is_featured": bool(row.get("is_featured", False)) if row.get("is_featured") is not None else False,
         }
-        
-        # Validate using Pydantic model
+
+        # Validate required fields:
+        required = ["name", "description", "price", "stock", "category", "images"]
+        for field in required:
+            val = product_data[field]
+            if isinstance(val, (str, list)) and not val:
+                raise ValueError(f"Missing required field: {field}")
+
+        # MANAGE category as needed (convert to category_id via lookup elsewhere if needed)
+        # Here, for now, set category_id=None
         product = ProductCreate(**product_data)
-        
         return True, BulkUploadRow(
             **product.model_dump(),
             row_number=row_number,
