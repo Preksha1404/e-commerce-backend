@@ -6,7 +6,7 @@ from src.core.database import get_db
 
 # Auth Dependencies
 def get_current_user(
-    access_token: str = Cookie(...),
+    access_token: str = Cookie(..., include_in_schema=False),
     db: Session = Depends(get_db)
 ):
     token_data = verify_token(access_token)

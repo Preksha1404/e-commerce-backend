@@ -37,7 +37,9 @@ phonenumbers==9.0.17
 
 # Cloudinary for image handling
 cloudinary==1.44.1
+
 # Data Processing
-pandas==2.1.2
+pandas==2.3.3
+numpy==2.3.4 
 openpyxl==3.1.2  # For Excel support
 sendgrid
