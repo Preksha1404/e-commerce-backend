@@ -10,6 +10,16 @@ import io
 
 logger = logging.getLogger(__name__)
 
+def generate_bulk_upload_template() -> str:
+    """Generate a sample CSV template for bulk product upload."""
+    header = (
+        "name,description,price,discount_price,stock,sku,category_id,is_active,is_featured,images\n"
+    )
+    sample_row = (
+        "Wireless Mouse,Ergonomic 2.4G mouse,19.99,14.99,120,WM-1001,3,true,false,https://img.example.com/mouse1.jpg|https://img.example.com/mouse2.jpg\n"
+    )
+    return header + sample_row
+
 async def process_upload_file(file: UploadFile, seller_id: int) -> pd.DataFrame:
     """Read and validate the uploaded file"""
     if file.filename.endswith('.csv'):
@@ -114,9 +124,9 @@ def save_products_batch(
                 db_products.append(db_prod)
                 inserted_rows.append(p)
 
-            # Bulk insert only the valid products in this batch
+            # Insert using ORM so related images are persisted via cascade
             if db_products:
-                db.bulk_save_objects(db_products)
+                db.add_all(db_products)
                 db.commit()
                 success_records.extend(inserted_rows)
         except Exception as e:
