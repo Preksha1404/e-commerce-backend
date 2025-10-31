@@ -35,21 +35,23 @@ class AuthService:
                 detail="Not authorized to login here"
             )
         
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Inactive user account"
-            )
-        
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE)
         access_token = create_access_token(
-            data={"sub": user.email, "role": user.role},
+            data={
+                "id": user.id,        # include user ID
+                "email": user.email,  # store email
+                "role": user.role     # include role, e.g., 'seller' or 'user'
+            },
             expires_delta=access_token_expires
         )
-        
+
         refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE)
         refresh_token = create_refresh_token(
-            data={"sub": user.email},
+            data={
+                "id": user.id,
+                "email": user.email,
+                "role": user.role
+            },
             expires_delta=refresh_token_expires
         )
         
