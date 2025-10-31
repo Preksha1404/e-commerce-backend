@@ -34,33 +34,24 @@ async def process_upload_file(file: UploadFile, seller_id: int) -> pd.DataFrame:
         raise ValueError("Unsupported file format. Please upload CSV or Excel file.")
 
 def validate_row(row: Dict[str, Any], row_number: int) -> Tuple[bool, BulkUploadRow]:
-    """Validate a single row of product data with updated required fields."""
+    """Validate a single row of product data"""
     try:
         product_data = {
             "name": str(row.get("name", "")),
             "description": str(row.get("description", "")),
             "price": float(row.get("price", 0)),
-            "stock": int(row.get("stock", 0)),
-            "category": str(row.get("category", "")),
-            "images": str(row.get("images", "")).split("|") if pd.notna(row.get("images")) else [],
-            # Optional fields with defaults or None:
             "discount_price": float(row.get("discount_price", 0)) if pd.notna(row.get("discount_price")) else None,
+            "stock": int(row.get("stock", 0)),
             "sku": str(row.get("sku", "")),
-            "category_id": int(row.get("category_id", 0)) if row.get("category_id") else None,
-            "is_active": bool(row.get("is_active", True)) if row.get("is_active") is not None else True,
-            "is_featured": bool(row.get("is_featured", False)) if row.get("is_featured") is not None else False,
+            "category_id": int(row.get("category_id", 0)),
+            "is_active": bool(row.get("is_active", True)),
+            "is_featured": bool(row.get("is_featured", False)),
+            "images": str(row.get("images", "")).split("|") if pd.notna(row.get("images")) else []
         }
-
-        # Validate required fields:
-        required = ["name", "description", "price", "stock", "category", "images"]
-        for field in required:
-            val = product_data[field]
-            if isinstance(val, (str, list)) and not val:
-                raise ValueError(f"Missing required field: {field}")
-
-        # MANAGE category as needed (convert to category_id via lookup elsewhere if needed)
-        # Here, for now, set category_id=None
+        
+        # Validate using Pydantic model
         product = ProductCreate(**product_data)
+        
         return True, BulkUploadRow(
             **product_data,
             row_number=row_number,
