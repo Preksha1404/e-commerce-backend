@@ -264,6 +264,45 @@ def delete_product(
 
     return {"message": f"Product '{db_product.name}' deleted successfully"}
 
+@router.patch("/{product_id}/status", response_model=ProductResponse)
+def update_product_status(
+    product_id: int,
+    status: str = Form(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Admin updates product status (approve/reject)
+    """
+    # Authorization
+    if current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can update product status"
+        )
+
+    db_product = db.query(Product).filter(Product.id == product_id).first()
+
+    if not db_product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Product with ID {product_id} not found"
+        )
+
+    if status not in ["approved", "rejected"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Status must be either 'approved' or 'rejected'"
+        )
+
+    db_product.status = status
+    db_product.is_active = True if status == "approved" else False
+
+    db.commit()
+    db.refresh(db_product)
+
+    return db_product
+
 @router.get("/bulk-upload/template")
 def download_bulk_upload_template():
     template = generate_bulk_upload_template()
