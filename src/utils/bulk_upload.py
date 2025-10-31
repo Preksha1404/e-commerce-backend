@@ -14,10 +14,8 @@ def generate_bulk_upload_template() -> str:
     """Generate a sample CSV template for bulk product upload."""
     header = (
         "name,description,price,stock,category,images\n"
-        "name,description,price,stock,category,images\n"
     )
     sample_row = (
-        "Wireless Mouse,Ergonomic 2.4G mouse,19.99,120,Electronics,https://img.example.com/mouse1.jpg|https://img.example.com/mouse2.jpg\n"
         "Wireless Mouse,Ergonomic 2.4G mouse,19.99,120,Electronics,https://img.example.com/mouse1.jpg|https://img.example.com/mouse2.jpg\n"
     )
     return header + sample_row
