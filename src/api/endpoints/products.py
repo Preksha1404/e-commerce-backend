@@ -6,6 +6,8 @@ from src.models.users import User
 from src.models.products import Product, ProductImage
 from src.utils.auth import get_current_active_user
 from src.utils.bulk_upload import process_upload_file, validate_row, save_products_batch, generate_bulk_upload_template
+from src.schemas.products import BulkUploadResponse, BulkUploadRow
+from typing import List
 from src.schemas.products import BulkUploadResponse, BulkUploadRow, ProductResponse
 from typing import List, Optional
 from src.utils.functions import generate_slug
@@ -311,6 +313,26 @@ async def bulk_upload_products(
             success_records, batch_errors = save_products_batch(
                 db, validated_products, current_user.id
             )
+            # If there are row-level errors, return a single concise message
+            if batch_errors:
+                # pick first meaningful error_message
+                first_msg = None
+                for err in batch_errors:
+                    # BulkUploadRow may be a pydantic model or dict-like
+                    if hasattr(err, "error_message") and err.error_message:
+                        first_msg = err.error_message
+                        break
+                    if isinstance(err, dict) and err.get("error_message"):
+                        first_msg = err.get("error_message")
+                        break
+
+                if not first_msg:
+                    # Fallback concise message
+                    row_info = getattr(batch_errors[0], "row_number", None) or (batch_errors[0].get("row_number") if isinstance(batch_errors[0], dict) else None)
+                    first_msg = f"Bulk upload failed: {len(batch_errors)} rows failed. First failure at row {row_info or 'unknown'}."
+
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=first_msg)
+
             errors.extend(batch_errors)
         else:
             success_records = []
@@ -332,7 +354,25 @@ async def bulk_upload_products(
         return response_payload
         
     except Exception as e:
+        # Return a concise error message (single line). Try to extract a useful reason
+        msg = str(e)
+        try:
+            # If the exception string contains a dict-like representation with an 'errors' key,
+            # attempt to extract the first error_message.
+            import ast
+            parsed = ast.literal_eval(msg) if msg.strip().startswith("{") else None
+            if isinstance(parsed, dict) and parsed.get("errors"):
+                first = parsed.get("errors")[0]
+                if isinstance(first, dict) and first.get("error_message"):
+                    msg = first.get("error_message")
+        except Exception:
+            # ignore parse errors and fall back to original message
+            pass
+
+        # Keep only the first line to avoid huge SQL dumps
+        msg = (msg.splitlines()[0]) if msg else "Bulk upload failed"
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(e)
+            detail=msg
         )
