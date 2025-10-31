@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
@@ -14,6 +14,49 @@ class ProductCreate(BaseModel):
     is_active: bool = True
     is_featured: bool = False
     images: Optional[List[str]] = Field(default_factory=list)  # List of image URLs
+
+class ProductImageResponse(BaseModel):
+    id: int
+    product_id: int
+    url: str
+    position: int
+    created_at: datetime
+
+    class Config:
+        orm_mode = True
+
+class CategoryResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    slug: Optional[str] = None
+    is_active: Optional[bool] = True
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
+
+class ProductResponse(BaseModel):
+    id: int
+    name: str
+    description: Optional[str] = None
+    price: Decimal
+    discount_price: Optional[Decimal] = None
+    stock: int
+    sku: Optional[str] = None
+    slug: str
+    category: CategoryResponse
+    is_featured: bool
+    status: str  # e.g., "pending", "approved", "rejected"
+    is_active: bool  # True if status == "approved"
+    images: Optional[List[ProductImageResponse]]= []
+    seller_id: int
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        orm_mode = True
 
 class BulkUploadRow(ProductCreate):
     row_number: int
