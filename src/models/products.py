@@ -14,7 +14,7 @@ class Category(Base):
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
+    image_url=Column(String,nullable=True)
     # Relationships
     parent = relationship("Category", remote_side=[id], backref="subcategories")
     products = relationship("Product", back_populates="category")

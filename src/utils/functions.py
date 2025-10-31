@@ -8,6 +8,8 @@ from dotenv import load_dotenv
 from src.schemas.users import TokenData
 import secrets
 import hashlib
+import random
+import string
 
 load_dotenv()
 
@@ -81,3 +83,9 @@ def generate_slug(text: str) -> str:
     while '--' in slug:
         slug = slug.replace('--', '-')
     return slug
+
+def generate_simple_sku(name: str) -> str:
+    """Generate a unique SKU from the name and 6 random alnum chars."""
+    base = name.strip().upper().replace(' ', '-')
+    suffix = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+    return f"{base}-{suffix}"

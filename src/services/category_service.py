@@ -20,34 +20,30 @@ def get_categories_by_status_service(db: Session, is_active: bool):
 
     # 3. Return list of ORM objects
     return categories
-
-def create_category_service(db: Session, category_data: CategoryCreate):
-    """
-    🧠 Service: Create a new category in the database
-    """
-    # Check if category name already exists
-    existing_category = db.query(CategoryModel).filter(CategoryModel.name == category_data.name).first()
+def create_category_service(db: Session, category_data: dict):
+    existing_category = db.query(CategoryModel) \
+        .filter(CategoryModel.name == category_data["name"]) \
+        .first()
     if existing_category:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Category with this name already exists"
         )
 
-    # Create new category model instance
     new_category = CategoryModel(
-        name=category_data.name,
-        description=category_data.description,
-        slug=category_data.slug,
-        parent_id=category_data.parent_id,
-        is_active=category_data.is_active,
+        name = category_data["name"],
+        description = category_data.get("description"),
+        slug = category_data["slug"],
+        parent_id = category_data.get("parent_id"),
+        is_active = category_data.get("is_active", True),
+        image_url = category_data.get("image_url")
     )
 
-    # Add to DB
     db.add(new_category)
     db.commit()
-    db.refresh(new_category)  # refresh to get auto-generated fields (id, created_at)
-
+    db.refresh(new_category)
     return new_category
+
 
 
 def update_category_service(db: Session, category_id: int, update_data: CategoryUpdate):

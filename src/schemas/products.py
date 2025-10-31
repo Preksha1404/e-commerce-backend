@@ -7,7 +7,6 @@ class ProductCreate(BaseModel):
     name: str
     description: Optional[str] = None
     price: Decimal = Field(ge=0)
-    discount_price: Optional[Decimal] = Field(default=None, ge=0)
     stock: int = Field(ge=0)
     sku: str
     category_id: int
@@ -15,10 +14,17 @@ class ProductCreate(BaseModel):
     is_featured: bool = False
     images: Optional[Union[List[str], List[bytes]]] = Field(default_factory=list)  # List of image URLs
 
-class BulkUploadRow(ProductCreate):
+class BulkUploadRow(BaseModel):
+    name: str
+    description: str
+    price: float
+    stock: int
+    category: str
+    images: Optional[List[str]] = Field(default_factory=list)
     row_number: int
-    error_message: Optional[str] = None
     status: str = "pending"  # pending, success, error
+    error_message: Optional[str] = None
+    category_id: Optional[int] = None
 
 class BulkUploadResponse(BaseModel):
     total_records: int
