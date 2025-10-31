@@ -63,13 +63,20 @@ async def bulk_upload_products(
             success_records = []
         
         # Prepare response
-        return BulkUploadResponse(
+        response_payload = BulkUploadResponse(
             total_records=len(df),
             successful_records=len(success_records),
             failed_records=len(errors),
             errors=errors,
             success_records=success_records
         )
+        if len(success_records) == 0:
+            # All records failed: return client error
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=response_payload.model_dump()
+            )
+        return response_payload
         
     except Exception as e:
         raise HTTPException(

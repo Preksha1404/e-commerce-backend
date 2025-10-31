@@ -17,10 +17,17 @@ class ProductCreate(BaseModel):
     is_active: Optional[bool] = True
     is_featured: Optional[bool] = False
 
-class BulkUploadRow(ProductCreate):
+class BulkUploadRow(BaseModel):
+    name: str
+    description: str
+    price: float
+    stock: int
+    category: str
+    images: Optional[List[str]] = Field(default_factory=list)
     row_number: int
-    error_message: Optional[str] = None
     status: str = "pending"  # pending, success, error
+    error_message: Optional[str] = None
+    category_id: Optional[int] = None
 
 class BulkUploadResponse(BaseModel):
     total_records: int
