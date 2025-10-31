@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from src.models.users import User
 from src.utils.functions import verify_token
 from src.core.database import get_db
-
+from src.schemas.users import UserRole,UserResponse
 # Auth Dependencies
 def get_current_user(
     access_token: str = Cookie(..., include_in_schema=False),
@@ -38,3 +38,13 @@ def require_admin(current_user: User = Depends(get_current_active_user)):
             detail="Admin privileges required."
         )
     return current_user
+
+def require_roles(*allowed_roles: UserRole):
+    def _require(current_user: UserResponse = Depends(get_current_user)):
+        if current_user.role not in allowed_roles:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Insufficient permissions"
+            )
+        return current_user
+    return _require

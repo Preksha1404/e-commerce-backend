@@ -42,7 +42,7 @@ class Product(Base):
     seller = relationship("src.models.users.User", back_populates="products")
     images = relationship("ProductImage", back_populates="product")
 
-class ProductImage(Base):
+class ProductImage(Base): 
     __tablename__ = "product_images"
 
     id = Column(Integer, primary_key=True, index=True)
