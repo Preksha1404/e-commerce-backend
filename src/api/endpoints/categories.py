@@ -63,7 +63,6 @@ async def create_category(
         image_url=image_url,
     )
 
-
 # ------------------- UPDATE Category ------------------- #
 @router.patch("/{category_id}", response_model=CategoryRead, dependencies=[Depends(require_admin)])
 async def update_category(
