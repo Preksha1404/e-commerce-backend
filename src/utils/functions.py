@@ -10,6 +10,7 @@ import secrets
 import hashlib
 import random
 import string
+from jose import JWTError
 
 load_dotenv()
 
@@ -26,16 +27,17 @@ def verify_pwd(plain_pwd: str, hashed_pwd: str) -> bool:
 def get_pwd_hash(password:str) -> str:
     return pwd_context.hash(password[:72])
 
-def create_access_token(data:dict, expires_delta: Optional[timedelta]= None):
-    to_encode = data.copy() # User data (email) to be encoded in the token
-    
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()  # e.g., {"id": user.id, "email": user.email, "role": user.role}
+
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
     else:
         expire = datetime.utcnow() + timedelta(minutes=15)
-        
-    to_encode.update({"exp":expire})
-    encoded_jwt = jwt.encode(to_encode, SECRET_KEY,algorithm=ALGORITHM) # Encode the token
+    
+    to_encode.update({"exp": expire, "type": "access"})
+    
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
     
 def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None):
@@ -49,23 +51,26 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire, "type": "refresh"})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
-def verify_token(token:str) -> TokenData:
+def verify_token(token: str) -> TokenData:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not verify credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM]) # Decode the token
-        email: str = payload.get("sub") # subject --> jwt payload key
-        if email is None:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not verify creditials",
-                headers={"WWW-Authenticate":"Bearer"}
-            )
-        return TokenData(email=email) # Return the email in TokenData schema
-    except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Could not verify creditials",
-                headers={"WWW-Authenticate":"Bearer"}
-        )
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: int = payload.get("id")
+        email: str = payload.get("email")
+        role: str = payload.get("role")
+
+        if email is None or user_id is None:
+            raise credentials_exception
+
+        return TokenData(id=user_id, email=email, role=role)
+
+    except JWTError:
+        raise credentials_exception
     
 def generate_reset_token() -> str:
     return secrets.token_urlsafe(32) # Generate a secure random token

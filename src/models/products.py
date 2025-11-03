@@ -36,6 +36,7 @@ class Product(Base):
     sku = Column(String, unique=True, nullable=False)
     category_id = Column(Integer, ForeignKey('categories.id'), nullable=False)
     seller_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+    status = Column(String(50), default="pending", nullable=True)
     is_active = Column(Boolean, default=True)
     is_featured = Column(Boolean, default=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

@@ -66,7 +66,9 @@ class Token(BaseModel):
     token_type: str
 
 class TokenData(BaseModel):
-    email: EmailStr | None = None
+    id: Optional[int] = None
+    email: Optional[EmailStr] = None
+    role: Optional[str] = None
 
 class ChangePasswordRequest(BaseModel):
     old_password: str=Field(...)
