@@ -121,12 +121,4 @@ async def delete_category(
     """✅ Delete category (Admin only)"""
     return delete_category_service(db, category_id)
 
-
-# ------------------- GET Category Image ------------------- #
-@router.get("/image/{filename}")
-def get_category_image(filename: str):
-    """✅ Fetch category image from local storage (legacy)"""
-    file_path = os.path.join("images/categories", filename)
-    if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="Image not found")
-    return FileResponse(file_path)
+ 
