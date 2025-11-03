@@ -35,7 +35,12 @@ def create_category_service(db: Session, name: str, description: str, image_url:
 
 
 # ---------------- UPDATE CATEGORY ---------------- #
-def update_category_service(db: Session, category_id: int, update_data: CategoryUpdate, image_url: str = None):
+def update_category_service(
+    db: Session,
+    category_id: int,
+    update_data: CategoryUpdate,
+    image_url: str = None
+):
     """✅ Updates category details and optionally replaces Cloudinary image."""
     category = db.query(CategoryModel).filter(CategoryModel.id == category_id).first()
     if not category:
@@ -50,17 +55,17 @@ def update_category_service(db: Session, category_id: int, update_data: Category
     if "name" in update_fields and update_fields["name"]:
         category.slug = slugify(update_fields["name"])
 
-    # ✅ Replace image if new one uploaded
-    if image_url:
-        category.image_url = image_url
+    # ✅ Only update image if a new one is uploaded
+    if image_url is not None:
+        category.image_url = image_url  # keep old one if not provided
 
+    # ✅ Apply all other updates
     for field, value in update_fields.items():
         setattr(category, field, value)
 
     db.commit()
     db.refresh(category)
     return category
-
 
 # ---------------- DELETE CATEGORY ---------------- #
 def delete_category_service(db: Session, category_id: int):

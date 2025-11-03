@@ -96,6 +96,8 @@ async def update_category(
             category.image_url = upload_result.get("secure_url")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Image upload failed: {str(e)}")
+    else:
+        pass
 
     db.commit()
     db.refresh(category)
