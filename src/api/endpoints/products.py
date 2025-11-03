@@ -29,7 +29,7 @@ def list_products(
     products = db.query(Product).all()
     return products
 
-@router.get("/{seller_id}/", response_model=List[ProductResponse])
+@router.get("/sellers/{seller_id}/", response_model=List[ProductResponse])
 def get_seller_products(
     seller_id: int,
     db: Session = Depends(get_db),
@@ -71,7 +71,7 @@ async def create_product(
     name: str = Form(...),
     description: Optional[str] = Form(None),
     price: float = Form(...),
-    discount_price: Optional[float] = Form(None),
+    discount_price: Optional[str] = Form(None),
     stock: int = Form(...),
     sku: Optional[str] = Form(None),
     category_id: int = Form(...),
@@ -90,15 +90,19 @@ async def create_product(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only sellers can create products"
         )
+    
+    # Handle optional discount price and SKU
+    discount_value = float(discount_price) if discount_price not in (None, "", "null") else None
+    sku_value = sku.strip() if sku and sku.strip() else None
 
     # Product initially inactive until approved by admin
     db_product = Product(
         name=name,
         description=description,
         price=price,
-        discount_price=discount_price,
+        discount_price=discount_value,
         stock=stock,
-        sku=sku,
+        sku=sku_value,
         category_id=category_id,
         slug=generate_slug(name),
         seller_id=current_user.id,
