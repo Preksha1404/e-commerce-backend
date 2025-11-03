@@ -33,7 +33,7 @@ class Product(Base):
     discount_price = Column(Float, nullable=True)
     stock = Column(Integer, default=0)
     slug = Column(String, unique=True, nullable=False)
-    sku = Column(String, unique=True, nullable=False)
+    sku = Column(String, unique=True, nullable=True)
     category_id = Column(Integer, ForeignKey('categories.id'), nullable=False)
     seller_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     status = Column(String(50), default="pending", nullable=True)

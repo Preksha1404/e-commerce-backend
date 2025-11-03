@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Form, Body
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
@@ -9,9 +9,7 @@ from src.models.users import User
 from src.models.products import Product, ProductImage
 from src.utils.auth import get_current_active_user
 from src.utils.bulk_upload import process_upload_file, validate_row, save_products_batch, generate_bulk_upload_template
-from src.schemas.products import BulkUploadResponse, BulkUploadRow
-from typing import List
-from src.schemas.products import BulkUploadResponse, BulkUploadRow, ProductResponse
+from src.schemas.products import BulkUploadResponse, BulkUploadRow, ProductResponse, AddStockRequest
 from typing import List, Optional
 from src.utils.functions import generate_slug
 import cloudinary
@@ -34,7 +32,7 @@ def list_products(
     products = db.query(Product).all()
     return products
 
-@router.get("/{seller_id}/", response_model=List[ProductResponse])
+@router.get("/sellers/{seller_id}/", response_model=List[ProductResponse])
 def get_seller_products(
     seller_id: int,
     db: Session = Depends(get_db),
@@ -76,7 +74,7 @@ async def create_product(
     name: str = Form(...),
     description: Optional[str] = Form(None),
     price: float = Form(...),
-    discount_price: Optional[float] = Form(None),
+    discount_price: Optional[str] = Form(None),
     stock: int = Form(...),
     sku: Optional[str] = Form(None),
     category_id: int = Form(...),
@@ -95,15 +93,19 @@ async def create_product(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only sellers can create products"
         )
+    
+    # Handle optional discount price and SKU
+    discount_value = float(discount_price) if discount_price not in (None, "", "null") else None
+    sku_value = sku.strip() if sku and sku.strip() else None
 
     # Product initially inactive until approved by admin
     db_product = Product(
         name=name,
         description=description,
         price=price,
-        discount_price=discount_price,
+        discount_price=discount_value,
         stock=stock,
-        sku=sku,
+        sku=sku_value,
         category_id=category_id,
         slug=generate_slug(name),
         seller_id=current_user.id,
@@ -268,6 +270,34 @@ def delete_product(
     db.commit()
 
     return {"message": f"Product '{db_product.name}' deleted successfully"}
+
+@router.patch("/{product_id}/stock", response_model=ProductResponse)
+async def add_product_stock(
+    product_id: int,
+    stock_data: AddStockRequest = Body(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    # Allow only sellers to add stock
+    if current_user.role != "seller":
+        raise HTTPException(status_code=403, detail="Only sellers can add stock")
+
+    # Fetch product
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    # Ensure the product belongs to this seller
+    if product.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only update your own products")
+
+    # Add stock
+    product.stock = (product.stock or 0) + stock_data.quantity
+
+    db.commit()
+    db.refresh(product)
+
+    return product
 
 @router.patch("/{product_id}/status", response_model=ProductResponse)
 def update_product_status(
