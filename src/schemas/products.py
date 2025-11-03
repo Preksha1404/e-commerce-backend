@@ -58,6 +58,9 @@ class ProductResponse(BaseModel):
     class Config:
         orm_mode = True
 
+class AddStockRequest(BaseModel):
+    quantity: int = Field(gt=0)
+
 class BulkUploadRow(ProductCreate):
     row_number: int
     error_message: Optional[str] = None
