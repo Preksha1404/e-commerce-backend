@@ -4,7 +4,7 @@ from fastapi import FastAPI, File, Form, UploadFile
 from src.core.database import engine, Base
 from src.api.endpoints import users, auth, sellers, products, profile
 from src.core.seed import seed_admin
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager  
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.requests import Request
