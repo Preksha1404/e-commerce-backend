@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Form, Body
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
 from src.core.database import get_db
@@ -6,9 +6,7 @@ from src.models.users import User
 from src.models.products import Product, ProductImage
 from src.utils.auth import get_current_active_user
 from src.utils.bulk_upload import process_upload_file, validate_row, save_products_batch, generate_bulk_upload_template
-from src.schemas.products import BulkUploadResponse, BulkUploadRow
-from typing import List
-from src.schemas.products import BulkUploadResponse, BulkUploadRow, ProductResponse
+from src.schemas.products import BulkUploadResponse, BulkUploadRow, ProductResponse, AddStockRequest
 from typing import List, Optional
 from src.utils.functions import generate_slug
 import cloudinary
@@ -269,6 +267,34 @@ def delete_product(
     db.commit()
 
     return {"message": f"Product '{db_product.name}' deleted successfully"}
+
+@router.patch("/{product_id}/stock", response_model=ProductResponse)
+async def add_product_stock(
+    product_id: int,
+    stock_data: AddStockRequest = Body(...),
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    # Allow only sellers to add stock
+    if current_user.role != "seller":
+        raise HTTPException(status_code=403, detail="Only sellers can add stock")
+
+    # Fetch product
+    product = db.query(Product).filter(Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    # Ensure the product belongs to this seller
+    if product.seller_id != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only update your own products")
+
+    # Add stock
+    product.stock = (product.stock or 0) + stock_data.quantity
+
+    db.commit()
+    db.refresh(product)
+
+    return product
 
 @router.patch("/{product_id}/status", response_model=ProductResponse)
 def update_product_status(

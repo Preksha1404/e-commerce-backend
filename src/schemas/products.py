@@ -69,6 +69,9 @@ class ProductResponse(BaseModel):
     class Config:
         orm_mode = True
 
+class AddStockRequest(BaseModel):
+    quantity: int = Field(gt=0)
+
 class BulkUploadRow(ProductCreate):
     row_number: int
     status: str = "pending"  # pending, success, error
