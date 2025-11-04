@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from src.core.database import get_db
 from src.utils.auth import get_current_active_user
 from src.models.users import User
-from src.schemas.cart import AddItemRequest, UpdateItemRequest, ApplyCouponRequest, CartOut, AddItemResponse
+from src.schemas.cart import AddItemRequest, UpdateItemRequest, ApplyCouponRequest, CartOut, AddItemResponse, UpdateItemResponse, RemoveItemResponse
 from src.services.cart_service import (
     get_cart,
     add_item,
@@ -41,17 +41,33 @@ def add_to_cart(payload: AddItemRequest, db: Session = Depends(get_db), current_
         raise HTTPException(status_code=400, detail=str(e))
 
 
-@router.put("/update", response_model=CartOut)
+@router.put("/update", response_model=UpdateItemResponse)
 def update_cart_item(payload: UpdateItemRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     try:
-        return update_item(db, current_user.id, payload.product_id, payload.quantity)
+        cart = update_item(db, current_user.id, payload.product_id, payload.quantity)
+        return UpdateItemResponse(
+            message="Cart item updated",
+            items=cart.items,
+            subtotal=cart.subtotal,
+            discount=cart.discount,
+            total=cart.total,
+            coupon=cart.coupon
+        )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
 
-@router.delete("/remove/{product_id}", response_model=CartOut)
+@router.delete("/remove/{product_id}", response_model=RemoveItemResponse)
 def remove_cart_item(product_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
-    return remove_item(db, current_user.id, product_id)
+    cart = remove_item(db, current_user.id, product_id)
+    return RemoveItemResponse(
+        message="Item removed from cart",
+        items=cart.items,
+        subtotal=cart.subtotal,
+        discount=cart.discount,
+        total=cart.total,
+        coupon=cart.coupon
+    )
 
 
 @router.delete("/clear", response_model=CartOut)

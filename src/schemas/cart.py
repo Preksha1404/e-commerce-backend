@@ -22,7 +22,7 @@ class CartItemOut(BaseModel):
     unit_price: float
     quantity: int
     line_total: float
-    thumbnail: Optional[str] = None
+    image_url: Optional[str] = None
 
 
 class CartOut(BaseModel):
@@ -46,3 +46,19 @@ class AddItemResponse(BaseModel):
     coupon: Optional[str] = None
 
 
+class UpdateItemResponse(BaseModel):
+    message: str
+    items: List[CartItemOut] = Field(default_factory=list)
+    subtotal: float
+    discount: float
+    total: float
+    coupon: Optional[str] = None
+
+
+class RemoveItemResponse(BaseModel):
+    message: str
+    items: List[CartItemOut] = Field(default_factory=list)
+    subtotal: float
+    discount: float
+    total: float
+    coupon: Optional[str] = None

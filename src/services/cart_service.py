@@ -24,12 +24,12 @@ def _serialize_cart(db: Session, cart: Cart, coupon: Optional[str] = None) -> Ca
 
     items: List[CartItemOut] = []
     for ci, prod in item_models:
-        # Try to fetch first image as thumbnail
-        thumb = None
+        # Try to fetch first image as image_url
+        image_url = None
         if prod.images:
             # relationship Product.images may be configured; fallback to query if not loaded
             if isinstance(prod.images, list) and prod.images:
-                thumb = prod.images[0].url
+                image_url = prod.images[0].url
             else:
                 img = (
                     db.query(ProductImage)
@@ -37,7 +37,7 @@ def _serialize_cart(db: Session, cart: Cart, coupon: Optional[str] = None) -> Ca
                     .order_by(ProductImage.position.asc())
                     .first()
                 )
-                thumb = img.url if img else None
+                image_url = img.url if img else None
 
         items.append(
             CartItemOut(
@@ -46,7 +46,7 @@ def _serialize_cart(db: Session, cart: Cart, coupon: Optional[str] = None) -> Ca
                 unit_price=ci.unit_price,
                 quantity=ci.quantity,
                 line_total=ci.unit_price * ci.quantity,
-                thumbnail=thumb,
+                image_url=image_url,
             )
         )
 
