@@ -35,7 +35,7 @@ class AuthService:
                 detail="Not authorized to login here"
             )
         
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE)
+        access_token_expires = timedelta(hours=ACCESS_TOKEN_EXPIRE)
         access_token = create_access_token(
             data={
                 "id": user.id,        # include user ID
