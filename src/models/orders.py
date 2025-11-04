@@ -49,7 +49,7 @@ class Order(Base):
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     total_amount = Column(Float, default=0.0)
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING)
-    shipping_address = Column(Text, nullable=True)
+    address_id = Column(Integer, ForeignKey("addresses.id"), nullable=False)
     payment_method = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -57,6 +57,7 @@ class Order(Base):
     # Relationships
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     user = relationship("src.models.users.User", backref="orders")
+    address = relationship("Address", back_populates="orders")
 
 
 class OrderItem(Base):

@@ -18,4 +18,4 @@ class Address(Base):
     country = Column(String(100), nullable=False)
 
     user = relationship("User", back_populates="addresses")
-    # orders = relationship("Order", back_populates="address")
+    orders = relationship("Order", back_populates="address")
