@@ -80,3 +80,19 @@ class ForgotPasswordRequest(BaseModel):
 class ResetPasswordRequest(BaseModel):
     token: str
     new_password: str
+
+
+class SellerBlockToggleRequest(BaseModel):
+    is_blocked: bool
+
+
+
+class SellerResponses(BaseModel):
+    id: int
+    email: str
+    full_name: str
+    is_blocked: bool
+
+class config:
+    from_attributes=True
+

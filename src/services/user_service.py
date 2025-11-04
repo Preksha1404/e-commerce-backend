@@ -3,11 +3,10 @@ from fastapi import HTTPException, status
 from fastapi.responses import JSONResponse
 from src.models.users import User
 from src.schemas.users import UserCreate, UserUpdate
-
 from src.utils.functions import get_pwd_hash
 
 class UserService:
-    @staticmethod
+    @staticmethod 
     def get_all_users(db: Session, current_user: User):
         if current_user.role != "admin":
             raise HTTPException(

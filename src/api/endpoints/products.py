@@ -1,7 +1,10 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, status, Form, Body
 from fastapi.responses import Response
 from sqlalchemy.orm import Session
-from src.core.database import get_db
+from sqlalchemy import or_
+from src.schemas.users import UserResponse,UserRole
+from src.core.database import SessionLocal, get_db 
+from src.models.products import Product, Category
 from src.models.users import User
 from src.models.products import Product, ProductImage
 from src.utils.auth import get_current_active_user
@@ -445,3 +448,5 @@ async def bulk_upload_products(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=msg
         )
+
+  
