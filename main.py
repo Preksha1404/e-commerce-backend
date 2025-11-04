@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import List, Optional
 from fastapi import FastAPI, File, Form, UploadFile
 from src.core.database import engine, Base
+from src.api.endpoints import users, auth, sellers, products, profile, orders, user_orders, seller_orders
 from src.api.endpoints import users, auth, sellers, products, profile, cart
 from src.core.seed import seed_admin
 from contextlib import asynccontextmanager  
@@ -60,4 +61,8 @@ app.include_router(auth.router)
 app.include_router(sellers.router)
 app.include_router(profile.router)
 app.include_router(products.router)
+app.include_router(orders.router)
+app.include_router(user_orders.router)
+app.include_router(seller_orders.router)
+app.include_router(categories.router)
 app.include_router(cart.router)
