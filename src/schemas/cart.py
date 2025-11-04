@@ -37,3 +37,12 @@ class MessageResponse(BaseModel):
     message: str
 
 
+class AddItemResponse(BaseModel):
+    message: str
+    items: List[CartItemOut] = Field(default_factory=list)
+    subtotal: float
+    discount: float
+    total: float
+    coupon: Optional[str] = None
+
+

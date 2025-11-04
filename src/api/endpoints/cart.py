@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from src.core.database import get_db
 from src.utils.auth import get_current_active_user
 from src.models.users import User
-from src.schemas.cart import AddItemRequest, UpdateItemRequest, ApplyCouponRequest, CartOut, MessageResponse
+from src.schemas.cart import AddItemRequest, UpdateItemRequest, ApplyCouponRequest, CartOut, AddItemResponse
 from src.services.cart_service import (
     get_cart,
     add_item,
@@ -23,11 +23,18 @@ def get_user_cart(db: Session = Depends(get_db), current_user: User = Depends(ge
     return get_cart(db, current_user.id)
 
 
-@router.post("/add", response_model=MessageResponse)
+@router.post("/add", response_model=AddItemResponse)
 def add_to_cart(payload: AddItemRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     try:
-        add_item(db, current_user.id, payload.product_id, payload.quantity)
-        return MessageResponse(message="Item added to cart")
+        cart = add_item(db, current_user.id, payload.product_id, payload.quantity)
+        return AddItemResponse(
+            message="Item added to cart",
+            items=cart.items,
+            subtotal=cart.subtotal,
+            discount=cart.discount,
+            total=cart.total,
+            coupon=cart.coupon
+        )
     except LookupError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except ValueError as e:
