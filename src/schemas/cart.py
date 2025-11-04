@@ -33,3 +33,7 @@ class CartOut(BaseModel):
     coupon: Optional[str] = None
 
 
+class MessageResponse(BaseModel):
+    message: str
+
+
