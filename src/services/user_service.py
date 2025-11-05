@@ -1,9 +1,10 @@
 from sqlalchemy.orm import Session
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 from src.models.users import User
 from src.schemas.users import UserCreate, UserUpdate
 from src.utils.functions import get_pwd_hash
+from src.utils.email import send_welcome_email
 
 class UserService:
     @staticmethod 
@@ -17,7 +18,7 @@ class UserService:
         return users
 
     @staticmethod
-    def register_user(db: Session, user: UserCreate):
+    async def register_user(db: Session, user: UserCreate, background_tasks: BackgroundTasks):
         # Check if email already exists
         if db.query(User).filter(User.email == user.email).first():
             return JSONResponse(
@@ -42,6 +43,10 @@ class UserService:
         db.add(new_user)
         db.commit()
         db.refresh(new_user)
+
+        # Send welcome email
+        await send_welcome_email(new_user.email, new_user.full_name, background_tasks)
+
         return new_user
     
     @staticmethod

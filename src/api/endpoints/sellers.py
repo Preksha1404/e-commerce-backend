@@ -47,12 +47,13 @@ def get_sellers(
 
 
 @router.post("/register", response_model=SellerResponse)
-def register_seller(
+async def register_seller(
     seller: SellerCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
 ):
     """🔹 Register a new seller account."""
-    return SellerService.register_seller(db, seller)
+    return await SellerService.register_seller(db, seller, background_tasks)
 
 
 @router.get("/{seller_id}", response_model=SellerResponse)

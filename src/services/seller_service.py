@@ -7,7 +7,7 @@ import os
 from src.models.users import User
 from src.schemas.users import SellerCreate, SellerUpdate
 from src.utils.functions import get_pwd_hash
-from src.utils.email import send_seller_verification_email
+from src.utils.email import send_seller_verification_email, send_seller_welcome_email
 from src.models.products import Product
 from src.schemas.products import ProductCreate
 
@@ -25,7 +25,7 @@ class SellerService:
         return db.query(User).filter(User.role == "seller").all()
 
     @staticmethod
-    def register_seller(db: Session, seller: SellerCreate):
+    async def register_seller(db: Session, seller: SellerCreate, background_tasks: BackgroundTasks):
         if db.query(User).filter(User.email == seller.email).first():
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -48,6 +48,14 @@ class SellerService:
         db.add(new_seller)
         db.commit()
         db.refresh(new_seller)
+
+        # Send seller verification email
+        await send_seller_welcome_email(
+            email=new_seller.email,
+            full_name=new_seller.full_name,
+            background_tasks=background_tasks,
+        )
+
         return new_seller
 
     @staticmethod
