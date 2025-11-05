@@ -1,13 +1,20 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 from typing import List, Optional
-from enum import Enum
-from src.models.orders import OrderStatus
 from datetime import datetime
+from src.models.orders import OrderStatus, PaymentStatus
 from src.schemas.addresses import AddressOut
+from src.schemas.products import ProductResponse
+
+class OrderProductInfo(BaseModel):
+    name: str
+    sku: str
+
+    class Config:
+        orm_mode = True
 
 class OrderItemSchema(BaseModel):
     id: int
-    product_id: int
+    product: OrderProductInfo
     seller_id: int
     quantity: int
     unit_price: float
@@ -25,19 +32,20 @@ class OrderItemCreateSchema(BaseModel):
 class OrderCreateSchema(BaseModel):
     address_id: int
     payment_method: str
-    items: List[OrderItemCreateSchema]  # Each order_item contains product_id, quantity, unit_price, seller_id
+    items: List[OrderItemCreateSchema]
 
 class OrderResponseSchema(BaseModel):
     id: int
     user_id: int
     total_amount: float
     status: OrderStatus
+    payment_status: PaymentStatus
     address: Optional[AddressOut]
     payment_method: Optional[str]
     created_at: datetime
     updated_at: Optional[datetime]
     items: List[OrderItemSchema]
-    
+
     class Config:
         orm_mode = True
 
@@ -51,7 +59,9 @@ class OrderSellerResponseSchema(BaseModel):
     user_id: int
     total_amount: float
     status: OrderStatus
+    payment_status: PaymentStatus
     created_at: datetime
+    address: Optional[AddressOut]
     items: List[OrderItemSchema]
 
     class Config:
