@@ -6,7 +6,7 @@ import cloudinary.uploader
 from src.models.products import Product, ProductImage
 from src.schemas.products import AddStockRequest, BulkUploadResponse, BulkUploadRow
 from src.utils.bulk_upload import process_upload_file, validate_row, save_products_batch, generate_bulk_upload_template
-from src.utils.functions import generate_slug
+from src.utils.functions import generate_slug, generate_simple_sku
 
 class ProductService:
     def __init__(self, db: Session, current_user):
@@ -51,8 +51,11 @@ class ProductService:
         if self.current_user.role != "seller":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only sellers can create products")
 
+        # Process discount price
         discount_value = float(discount_price) if discount_price not in (None, "", "null") else None
-        sku_value = sku.strip() if sku and sku.strip() else None
+
+        # Generate SKU if not provided
+        sku_value = sku.strip() if sku and sku.strip() else generate_simple_sku(name)
 
         db_product = Product(
             name=name,
@@ -73,6 +76,7 @@ class ProductService:
         self.db.commit()
         self.db.refresh(db_product)
 
+        # Upload images
         for index, image in enumerate(images, start=1):
             if not image.content_type.startswith("image/"):
                 raise HTTPException(status_code=400, detail=f"Invalid file type: {image.filename}")

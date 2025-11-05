@@ -4,14 +4,15 @@ from sqlalchemy.orm import relationship
 from src.core.database import Base
 import enum
 
-
 class OrderStatus(str, enum.Enum):
     PENDING = "pending"
-    PAID = "paid"
     SHIPPED = "shipped"
     DELIVERED = "delivered"
     CANCELLED = "cancelled"
 
+class PaymentStatus(str, enum.Enum):
+    PAID = "paid"
+    FAILED = "failed"
 
 class Cart(Base):
     __tablename__ = "carts"
@@ -49,6 +50,7 @@ class Order(Base):
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     total_amount = Column(Float, default=0.0)
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING)
+    payment_status = Column(Enum(PaymentStatus), default=PaymentStatus.FAILED)
     address_id = Column(Integer, ForeignKey("addresses.id"), nullable=False)
     payment_method = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

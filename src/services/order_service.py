@@ -1,24 +1,24 @@
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
-from src.models.orders import Order, OrderItem, OrderStatus
+from src.models.orders import Order, OrderItem, OrderStatus, PaymentStatus
 from src.models.products import Product
 from src.models.addresses import Address
 from src.models.users import User
 from src.schemas.orders import OrderCreateSchema
 from typing import List
 from src.utils.order_status import update_order_overall_status
+from src.services.product_service import ProductService
 
 class OrderService:
     def __init__(self, db: Session):
         self.db = db
 
-    # User methods
+    # ---------------- User Methods ---------------- #
+
     def get_user_orders(self, current_user: User) -> List[Order]:
         if current_user.role != "customer":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to access this resource"
-            )
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+        
         return (
             self.db.query(Order)
             .filter(Order.user_id == current_user.id)
@@ -28,15 +28,14 @@ class OrderService:
 
     def place_order(self, order_data: OrderCreateSchema, current_user: User) -> Order:
         # Validate address
-        address = (
-            self.db.query(Address)
-            .filter(Address.id == order_data.address_id, Address.user_id == current_user.id)
-            .first()
-        )
+        address = self.db.query(Address).filter(
+            Address.id == order_data.address_id,
+            Address.user_id == current_user.id
+        ).first()
         if not address:
             raise HTTPException(status_code=404, detail="Address not found")
 
-        # Calculate total and prepare order items
+        # Prepare order items and calculate total
         total_amount = 0
         order_items = []
         for item in order_data.items:
@@ -67,11 +66,12 @@ class OrderService:
             payment_method=order_data.payment_method,
             total_amount=total_amount,
             status=OrderStatus.PENDING,
+            payment_status=PaymentStatus.FAILED,
         )
         self.db.add(order)
-        self.db.flush()  # get order.id
+        self.db.flush()  # Get order.id
 
-        # Add order items and update stock
+        # Add order items & update stock
         for oi in order_items:
             oi.order_id = order.id
             self.db.add(oi)
@@ -83,55 +83,34 @@ class OrderService:
         return order
 
     def cancel_order(self, order_id: int, current_user: User):
-        
-        user=self.db.query(User).filter(User.id==current_user.id).first()
+        if current_user.role != "customer":
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
-        if user.role != "customer":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to access this resource"
-            )
+        order = self.db.query(Order).filter(
+            Order.id == order_id, Order.user_id == current_user.id
+        ).first()
 
-        order = (
-            self.db.query(Order)
-            .filter(Order.id == order_id, Order.user_id == current_user.id)
-            .first()
-        )
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
 
         if order.status in [OrderStatus.SHIPPED, OrderStatus.DELIVERED]:
             raise HTTPException(status_code=400, detail="Cannot cancel shipped or delivered order")
-
         if order.status == OrderStatus.CANCELLED:
             raise HTTPException(status_code=400, detail="Order is already cancelled")
 
         order.status = OrderStatus.CANCELLED
         self.db.commit()
+
         return {
             "order_id": order.id,
             "status": order.status,
             "message": "Order cancelled successfully",
         }
-    
-    # Admin method to get all orders
-    def get_all_orders(self, current_user: User) -> List[Order]:
-            if current_user.role != "admin":
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Not authorized to access this resource"
-                )
 
-            return (
-                self.db.query(Order)
-                .order_by(Order.created_at.desc())
-                .all()
-            )
-    
-    # Seller methods
+    # ---------------- Admin Method ---------------- #
     def get_seller_orders(self, current_user: User) -> List[dict]:
         if current_user.role != "seller":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+            raise HTTPException(status_code=403, detail="Not authorized")
 
         orders = (
             self.db.query(Order)
@@ -142,28 +121,59 @@ class OrderService:
 
         seller_orders = []
         for order in orders:
-            seller_items = [item for item in order.items if item.seller_id == current_user.id]
-            order_data = {
+            seller_items = []
+            for item in order.items:
+                if item.seller_id == current_user.id:
+                    # Fetch minimal product info
+                    product = ProductService(self.db, None).get_product(item.product_id)
+                    seller_items.append({
+                        "id": item.id,
+                        "product": {"name": product.name, "sku": product.sku},
+                        "seller_id": item.seller_id,
+                        "quantity": item.quantity,
+                        "unit_price": item.unit_price,
+                        "total_price": item.total_price,
+                        "status": item.status
+                    })
+
+            seller_orders.append({
                 "id": order.id,
                 "user_id": order.user_id,
                 "total_amount": order.total_amount,
                 "status": order.status,
+                "payment_status": order.payment_status,
                 "created_at": order.created_at,
-                "items": seller_items,
-            }
-            seller_orders.append(order_data)
-
+                "address": order.address,
+                "items": seller_items
+            })
         return seller_orders
-
+    
     def get_seller_order_details(self, order_id: int, current_user: User) -> dict:
         if current_user.role != "seller":
-            raise HTTPException(status_code=403, detail="Not authorized to access this resource")
+            raise HTTPException(status_code=403, detail="Not authorized")
 
         order = self.db.query(Order).filter(Order.id == order_id).first()
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
 
-        seller_items = [item for item in order.items if item.seller_id == current_user.id]
+        seller_items = []
+        for item in order.items:
+            if item.seller_id == current_user.id:
+                # Fetch minimal product info
+                product = ProductService(self.db, None).get_product(item.product_id)
+                seller_items.append({
+                    "id": item.id,
+                    "product": {
+                        "name": product.name,
+                        "sku": product.sku
+                    },
+                    "seller_id": item.seller_id,
+                    "quantity": item.quantity,
+                    "unit_price": item.unit_price,
+                    "total_price": item.total_price,
+                    "status": item.status
+                })
+
         if not seller_items:
             raise HTTPException(status_code=403, detail="This order does not contain your products")
 
@@ -172,23 +182,21 @@ class OrderService:
             "user_id": order.user_id,
             "total_amount": order.total_amount,
             "status": order.status,
+            "payment_status": order.payment_status,
             "created_at": order.created_at,
-            "items": seller_items,
+            "address": order.address,
+            "items": seller_items
         }
 
     def update_order_item_status(self, order_id: int, item_id: int, new_status: OrderStatus, current_user: User):
         if current_user.role != "seller":
             raise HTTPException(status_code=403, detail="Only sellers can update item status")
 
-        order_item = (
-            self.db.query(OrderItem)
-            .filter(
-                OrderItem.id == item_id,
-                OrderItem.order_id == order_id,
-                OrderItem.seller_id == current_user.id,
-            )
-            .first()
-        )
+        order_item = self.db.query(OrderItem).filter(
+            OrderItem.id == item_id,
+            OrderItem.order_id == order_id,
+            OrderItem.seller_id == current_user.id,
+        ).first()
 
         if not order_item:
             raise HTTPException(status_code=404, detail="Item not found for this seller in this order")
