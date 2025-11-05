@@ -62,6 +62,7 @@ def create_refresh_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode.update({"exp": expire, "type": "refresh"})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
+
 def verify_token(token: str) -> TokenData:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -69,20 +70,32 @@ def verify_token(token: str) -> TokenData:
         headers={"WWW-Authenticate": "Bearer"},
     )
 
+    if not token:
+        raise credentials_exception
+
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: int = payload.get("id")
-        email: str = payload.get("email")
-        role: str = payload.get("role")
+        print("Decoded payload:", payload)  # Debug info
 
-        if email is None or user_id is None:
+        user_id = payload.get("id")
+        email = payload.get("sub")
+        role = payload.get("role")
+
+        if not user_id or not email:
+            print("Missing id or email in token")
+            raise credentials_exception
+
+        # Optional: check expiration manually
+        exp = payload.get("exp")
+        if exp and datetime.utcfromtimestamp(exp) < datetime.utcnow():
+            print("Token expired")
             raise credentials_exception
 
         return TokenData(id=user_id, email=email, role=role)
 
-    except JWTError:
+    except JWTError as e:
+        print("JWTError:", e)
         raise credentials_exception
-    
 def generate_reset_token() -> str:
     return secrets.token_urlsafe(32) # Generate a secure random token
 
