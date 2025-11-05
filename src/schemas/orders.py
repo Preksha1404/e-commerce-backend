@@ -3,6 +3,7 @@ from typing import List, Optional
 from enum import Enum
 from src.models.orders import OrderStatus
 from datetime import datetime
+from src.schemas.addresses import AddressOut
 
 class OrderItemSchema(BaseModel):
     id: int
@@ -22,7 +23,7 @@ class OrderItemCreateSchema(BaseModel):
     quantity: int
 
 class OrderCreateSchema(BaseModel):
-    shipping_address: str
+    address_id: int
     payment_method: str
     items: List[OrderItemCreateSchema]  # Each order_item contains product_id, quantity, unit_price, seller_id
 
@@ -31,7 +32,7 @@ class OrderResponseSchema(BaseModel):
     user_id: int
     total_amount: float
     status: OrderStatus
-    shipping_address: Optional[str]
+    address: Optional[AddressOut]
     payment_method: Optional[str]
     created_at: datetime
     updated_at: Optional[datetime]
@@ -55,3 +56,6 @@ class OrderSellerResponseSchema(BaseModel):
 
     class Config:
         orm_mode = True
+
+class OrderStatusUpdateSchema(BaseModel):
+    new_status: OrderStatus
