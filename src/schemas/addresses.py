@@ -1,10 +1,10 @@
 from pydantic import BaseModel, Field
 from typing import Optional, List
-
+from pydantic_extra_types.phone_numbers import PhoneNumber
 
 class AddressBase(BaseModel):
     full_name: str = Field(max_length=100)
-    phone_number: str = Field(max_length=20)
+    phone_number: PhoneNumber
     address_line_1: str = Field(max_length=255)
     address_line_2: Optional[str] = Field(default=None, max_length=255)
     city: str = Field(max_length=100)
