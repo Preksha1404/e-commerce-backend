@@ -19,7 +19,7 @@ class Category(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     image_url = Column(String, nullable=True)
 
-    # ✅ relationship to Product
+    # ✅ Relationship to Product
     products = relationship("Product", back_populates="category")
 
 
@@ -42,10 +42,11 @@ class Product(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # ✅ relationships
+    # ✅ Relationships
     category = relationship("Category", back_populates="products")
-    seller = relationship("src.models.users.User", back_populates="products")
+    seller = relationship("User", back_populates="products")   # ← FIXED import name
     images = relationship("ProductImage", back_populates="product")
+    order_items = relationship("OrderItem", back_populates="product")  # ← ✅ added
 
 
 class ProductImage(Base):
@@ -57,5 +58,5 @@ class ProductImage(Base):
     position = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    # ✅ relationship
+    # ✅ Relationship
     product = relationship("Product", back_populates="images")

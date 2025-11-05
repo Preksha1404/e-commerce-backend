@@ -46,3 +46,4 @@ sendgrid
 
 # Slug generation
 python-slugify==8.0.4
+reportlab==4.2.5

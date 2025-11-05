@@ -69,3 +69,39 @@ class UserService:
         db.commit()
         db.refresh(user)
         return user
+    
+
+    @staticmethod
+    def toggle_customer_block(user_id: int, db: Session, current_user: User):
+        """
+        Admin-only: Toggle customer's active/block status.
+        """
+        # Only admin can toggle block/unblock
+        if current_user.role != "admin":
+            raise HTTPException(
+                status_code=403,
+                detail="Only admin can block/unblock customers."
+            )
+
+        user = db.query(User).filter(User.id == user_id, User.role == "customer").first()
+
+        if not user:
+            raise HTTPException(
+                status_code=404,
+                detail="Customer not found"
+            )
+
+        # Toggle block/unblock status
+        user.is_blocked = not user.is_blocked
+
+        db.commit()
+        db.refresh(user)
+
+        action = "blocked" if user.is_blocked else "unblocked"
+
+        return {
+            "status": "success",
+            "message": f"Customer {user.full_name} has been {action}.",
+            "user_id": user.id,
+            "is_blocked": user.is_blocked
+        }

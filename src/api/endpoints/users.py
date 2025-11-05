@@ -37,3 +37,14 @@ def update_user(
     current_user: User = Depends(get_current_active_user)
 ):
     return UserService.update_user(db, user_id, user_update, current_user)
+
+@router.patch("/{user_id}/toggle-block")
+def toggle_customer_block(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Toggle (block/unblock) a customer — Admin-only access.
+    """
+    return UserService.toggle_customer_block(user_id, db, current_user)

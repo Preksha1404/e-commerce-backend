@@ -7,25 +7,25 @@ import os
 from src.models.users import User
 from src.schemas.users import SellerCreate, SellerUpdate
 from src.utils.functions import get_pwd_hash
-from src.utils.email import send_seller_verification_email
+from src.utils.email import send_seller_verification_email, send_seller_block_status_email
 from src.models.products import Product
 from src.schemas.products import ProductCreate
-
 
 # ---------------- SELLER ACCOUNT MANAGEMENT ----------------
 class SellerService:
     @staticmethod
     def get_all_sellers(db: Session, current_user: User):
+        """Admin: Get all sellers"""
         if current_user.role != "admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to view sellers"
             )
-
         return db.query(User).filter(User.role == "seller").all()
 
     @staticmethod
     def register_seller(db: Session, seller: SellerCreate):
+        """Register new seller"""
         if db.query(User).filter(User.email == seller.email).first():
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -52,6 +52,7 @@ class SellerService:
 
     @staticmethod
     def get_seller_by_id(db: Session, seller_id: int, current_user: User):
+        """Admin or Seller: Get seller by ID"""
         if current_user.role != "admin" and current_user.id != seller_id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -71,16 +72,15 @@ class SellerService:
         return seller
 
     @staticmethod
-    def update_seller_status(db: Session, seller_id: int, status: str, current_user: User):
+    def update_seller_status(db: Session, seller_id: int, status: str, current_user: User, background_tasks: BackgroundTasks):
+        """Admin: Approve / Reject / Block / Unblock Seller"""
         if current_user.role != "admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to update seller status"
             )
 
-        seller = db.query(User).filter(
-            User.id == seller_id, User.role == "seller"
-        ).first()
+        seller = db.query(User).filter(User.id == seller_id, User.role == "seller").first()
         if not seller:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -90,9 +90,12 @@ class SellerService:
         if status == "approved":
             seller.is_active = True
             seller.is_blocked = False
-        elif status == "rejected":
+        elif status == "blocked":
             seller.is_active = False
             seller.is_blocked = True
+        elif status == "unblocked":
+            seller.is_active = True
+            seller.is_blocked = False
         elif status == "pending":
             seller.is_active = False
             seller.is_blocked = False
@@ -104,7 +107,16 @@ class SellerService:
 
         db.commit()
         db.refresh(seller)
-        return seller
+
+        # Send seller notification email in background
+        background_tasks.add_task(
+            send_seller_block_status_email,
+            seller.email,
+            seller.full_name,
+            status
+        )
+
+        return {"message": f"Seller {status} successfully", "seller": seller}
 
     @staticmethod
     async def update_seller(
@@ -114,33 +126,33 @@ class SellerService:
         current_user: User,
         background_tasks: BackgroundTasks
     ):
+        """Seller: Update profile info (store name/address/description)"""
         if current_user.id != seller_id or current_user.role != "seller":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to update this seller"
             )
 
-        seller = db.query(User).filter(
-            User.id == seller_id, User.role == "seller"
-        ).first()
+        seller = db.query(User).filter(User.id == seller_id, User.role == "seller").first()
         if not seller:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Seller not found"
             )
 
+        # Track old values
         old_store_name = seller.store_name
         old_store_address = seller.store_address
         old_store_description = seller.store_description
 
+        # Update new fields
         seller.full_name = seller_update.full_name or seller.full_name
         seller.phone = seller_update.phone or seller.phone
         seller.store_name = seller_update.store_name or seller.store_name
         seller.store_address = seller_update.store_address or seller.store_address
-        seller.store_description = (
-            seller_update.store_description or seller.store_description
-        )
+        seller.store_description = seller_update.store_description or seller.store_description
 
+        # Detect business info change
         business_changed = (
             (seller_update.store_name and seller_update.store_name != old_store_name)
             or (seller_update.store_address and seller_update.store_address != old_store_address)
@@ -162,9 +174,9 @@ class SellerService:
         db.refresh(seller)
         return seller
 
-    # ✅ Combined seller + product dashboard
     @staticmethod
     def get_seller_with_products(db: Session, seller_id: int, current_user: User):
+        """Admin or Seller: View seller with their products"""
         if current_user.role not in ["admin", "seller"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -177,10 +189,7 @@ class SellerService:
                 detail="You can only view your own details"
             )
 
-        seller = db.query(User).filter(
-            User.id == seller_id, User.role == "seller"
-        ).first()
-
+        seller = db.query(User).filter(User.id == seller_id, User.role == "seller").first()
         if not seller:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -188,43 +197,13 @@ class SellerService:
             )
 
         products = db.query(Product).filter(Product.seller_id == seller_id).all()
-
-        seller_data = {
-            "id": seller.id,
-            "full_name": seller.full_name,
-            "email": seller.email,
-            "phone": seller.phone,
-            "store_name": seller.store_name,
-            "store_address": seller.store_address,
-            "store_description": seller.store_description,
-            "is_active": seller.is_active,
-            "is_blocked": seller.is_blocked,
-            "created_at": seller.created_at,
-        }
-
-        product_data = [
-            {
-                "id": p.id,
-                "name": p.name,
-                "description": p.description,
-                "price": p.price,
-                "stock": p.stock,
-                "category_id": p.category_id,
-                "images": p.images,
-                "is_featured": p.is_featured,
-                "created_at": p.created_at,
-                "updated_at": p.updated_at,
-            }
-            for p in products
-        ]
-
         total_revenue = sum(p.price * p.stock for p in products)
 
         return {
-            "seller": seller_data,
-            "total_products": len(product_data),
+            "seller": seller,
+            "total_products": len(products),
             "total_revenue": total_revenue,
-            "products": product_data
+            "products": products
         }
 
 
@@ -241,18 +220,16 @@ class ProductService:
         current_user: User,
         images: Optional[List[UploadFile]] = None,
     ):
-        # ✅ Only sellers can add products
+        """Seller: Add a new product"""
         if current_user.role != "seller":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to add products"
             )
 
-        # ✅ Ensure the upload directory exists
         upload_dir = "uploads"
         os.makedirs(upload_dir, exist_ok=True)
 
-        # ✅ Handle uploaded images
         image_paths = []
         if images:
             for image in images:
@@ -261,7 +238,6 @@ class ProductService:
                     f.write(image.file.read())
                 image_paths.append(file_location)
 
-        # ✅ Create and save the new product
         new_product = Product(
             name=name,
             description=description,
@@ -288,44 +264,37 @@ class ProductService:
                 "images": image_paths,
             },
         }
+
     @staticmethod
     def update_product(db: Session, seller_id: int, prod_id: int, current_user: User):
+        """Seller: Update product details"""
         if current_user.id != seller_id or current_user.role != "seller":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to update products"
             )
 
-        product = db.query(Product).filter(
-            Product.id == prod_id, Product.seller_id == seller_id
-        ).first()
+        product = db.query(Product).filter(Product.id == prod_id, Product.seller_id == seller_id).first()
         if not product:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Product not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
-        product.price = product.price + 10
+        product.price += 10  # Example update
         db.commit()
         db.refresh(product)
         return {"message": "Product updated successfully", "product": product}
 
     @staticmethod
     def delete_product(db: Session, seller_id: int, prod_id: int, current_user: User):
+        """Seller: Delete a product"""
         if current_user.id != seller_id or current_user.role != "seller":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to delete products"
             )
 
-        product = db.query(Product).filter(
-            Product.id == prod_id, Product.seller_id == seller_id
-        ).first()
+        product = db.query(Product).filter(Product.id == prod_id, Product.seller_id == seller_id).first()
         if not product:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Product not found"
-            )
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Product not found")
 
         db.delete(product)
         db.commit()
@@ -333,6 +302,7 @@ class ProductService:
 
     @staticmethod
     def get_all_products(db: Session, seller_id: int, current_user: User):
+        """Seller: Get all their products"""
         if current_user.id != seller_id or current_user.role != "seller":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,

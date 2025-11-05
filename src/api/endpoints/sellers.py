@@ -11,7 +11,7 @@ from fastapi import (
 )
 from sqlalchemy.orm import Session
 from typing import List, Optional
- 
+
 from src.core.database import SessionLocal
 from src.models.users import User
 from src.models.products import Product
@@ -23,7 +23,8 @@ from src.schemas.users import (
 )
 from src.utils.auth import get_current_active_user, require_admin
 from src.services.seller_service import SellerService, ProductService
-
+from src.utils.email import send_seller_block_status_email, send_seller_verification_email,send_email
+from src.services.invoice_generator import generate_pdf
 router = APIRouter(prefix="/sellers", tags=["Sellers"])
 
 
@@ -97,30 +98,73 @@ def update_seller_status(
     summary="Toggle block/unblock status for a seller (Admin only)",
 )
 def toggle_seller_block_status(
+    background_tasks: BackgroundTasks,
     seller_id: int = Path(..., ge=1),
     db: Session = Depends(get_db),
 ):
+
     """🔒 Toggle block/unblock seller (Admin-only access)."""
-    seller = db.query(User).filter(User.id == seller_id, User.role == "seller").first()
+    seller = (
+        db.query(User)
+        .filter(User.id == seller_id, User.role == "seller")
+        .first()
+    )
 
     if not seller:
         raise HTTPException(status_code=404, detail="Seller not found")
 
+    # Toggle the block status
     seller.is_blocked = not seller.is_blocked
     db.commit()
     db.refresh(seller)
 
+    # Email details
+    if seller.is_blocked:
+        subject = "🚫 Your Seller Account Has Been Blocked"
+        html_content = f"""
+        <html>
+            <body>
+                <h2>Account Blocked</h2>
+                <p>Dear <strong>{seller.full_name}</strong>,</p>
+                <p>Your seller account has been <strong>blocked</strong> by the admin.
+                You cannot log in until it’s unblocked.</p>
+                <p>If you believe this was a mistake, please contact support.</p>
+                <br />
+                <p>Regards,<br><strong>Admin Team</strong></p>
+            </body>
+        </html>
+        """
+    else:
+        subject = "✅ Your Seller Account Has Been Unblocked"
+        html_content = f"""
+        <html>
+            <body>
+                <h2>Account Unblocked</h2>
+                <p>Dear <strong>{seller.full_name}</strong>,</p>
+                <p>Good news! Your seller account has been <strong>unblocked</strong>.</p>
+                <p>You can now log in and continue managing your store.</p>
+                <br />
+                <p>Regards,<br><strong>Admin Team</strong></p>
+            </body>
+        </html>
+        """
+
+    # Send notification email asynchronously
+    send_email(
+        email_to=seller.email,
+        subject=subject,
+        html_content=html_content,
+        background_tasks=background_tasks,
+    )
+
+    # Response
     status_text = "blocked" if seller.is_blocked else "unblocked"
 
     return {
         "id": seller.id,
         "email": seller.email,
-        "full_name": seller.full_name,
+        "full_name": seller.full_name,      
         "is_blocked": seller.is_blocked,
         "status": status_text,
         "message": f"Seller {seller.full_name} has been {status_text} successfully.",
     }
-
-
-# ----------------- CLOUDINARY IMAGE UPLOAD -----------------
- 

@@ -21,11 +21,22 @@ REFRESH_TOKEN_EXPIRE = int(os.getenv("REFRESH_TOKEN_EXPIRE"))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-def verify_pwd(plain_pwd: str, hashed_pwd: str) -> bool:
-    return pwd_context.verify(plain_pwd[:72], hashed_pwd)
-
-def get_pwd_hash(password:str) -> str:
+def get_pwd_hash(password: str) -> str:
+    """
+    Hash the password using bcrypt.
+    Bcrypt automatically handles salting internally.
+    """
+    # bcrypt has 72-byte input limit, so truncate safely
     return pwd_context.hash(password[:72])
+
+def verify_pwd(plain_pwd: str, hashed_pwd: str) -> bool:
+    """
+    Verify that a plain password matches its hashed version.
+    """
+    try:
+        return pwd_context.verify(plain_pwd[:72], hashed_pwd)
+    except Exception:
+        return False
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
     to_encode = data.copy()  # e.g., {"id": user.id, "email": user.email, "role": user.role}

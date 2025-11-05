@@ -21,9 +21,8 @@ class Cart(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
     items = relationship("CartItem", back_populates="cart", cascade="all, delete-orphan")
-    user = relationship("src.models.users.User", backref="carts")
+    user = relationship("src.models.users.User", back_populates="carts")
 
 
 class CartItem(Base):
@@ -36,7 +35,6 @@ class CartItem(Base):
     unit_price = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    # Relationships
     cart = relationship("Cart", back_populates="items")
     product = relationship("src.models.products.Product")
 
@@ -53,9 +51,8 @@ class Order(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    # Relationships
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
-    user = relationship("src.models.users.User", backref="orders")
+    user = relationship("src.models.users.User", back_populates="orders")
 
 
 class OrderItem(Base):
@@ -69,6 +66,5 @@ class OrderItem(Base):
     total_price = Column(Float, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-    # Relationships
     order = relationship("Order", back_populates="items")
     product = relationship("src.models.products.Product")
