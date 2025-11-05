@@ -14,7 +14,6 @@ class OrderService:
         self.db = db
 
     # ---------------- User Methods ---------------- #
-
     def get_user_orders(self, current_user: User) -> List[Order]:
         if current_user.role != "customer":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
@@ -108,6 +107,13 @@ class OrderService:
         }
 
     # ---------------- Admin Method ---------------- #
+    def get_all_orders(self, current_user: User) -> List[Order]:
+        if current_user.role != "admin":
+            raise HTTPException(status_code=403, detail="Not authorized")
+
+        return self.db.query(Order).order_by(Order.created_at.desc()).all()
+    
+    # ---------------- Seller Methods ---------------- #
     def get_seller_orders(self, current_user: User) -> List[dict]:
         if current_user.role != "seller":
             raise HTTPException(status_code=403, detail="Not authorized")
