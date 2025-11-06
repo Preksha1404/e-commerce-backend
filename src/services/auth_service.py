@@ -34,74 +34,37 @@ class AuthService:
     """
 
     # ---------------- LOGIN ----------------
+    # ✅ UPDATED AuthService.login
     @staticmethod
     def login(credentials: UserLogin, db: Session):
-        """
-        Authenticate a user and return tokens + user info.
-        """
         user = db.query(User).filter(User.email == credentials.email).first()
-
         if not user or not verify_pwd(credentials.password, user.hashed_password):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password",
-                headers={"WWW-Authenticate": "Bearer"},
-            )
+            raise HTTPException(status_code=401, detail="Incorrect email or password")
 
         if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Account is inactive. Please contact support.",
-            )
-
+            raise HTTPException(status_code=403, detail="Account is inactive.")
         if user.is_blocked:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Account is blocked. Contact admin.",
-            )
-
+            raise HTTPException(status_code=403, detail="Account is blocked.")
         if user.role not in ["customer", "seller", "admin"]:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to login here.",
-            )
+            raise HTTPException(status_code=403, detail="Not authorized.")
 
-        # Generate access and refresh tokens
-        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE)
-        refresh_token_expires = timedelta(days=REFRESH_TOKEN_EXPIRE)
-
+    # Tokens
         access_token = create_access_token(
-            data={
-                "sub": user.email,
-                "id": user.id,
-                "role": user.role,
-                "type": "access",
-            },
-            expires_delta=access_token_expires,
+            data={"sub": user.email, "id": user.id, "role": user.role, "type": "access"},
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE),
         )
-
         refresh_token = create_refresh_token(
-            data={
-                "sub": user.email,
-                "id": user.id,
-                "role": user.role,
-                "type": "refresh",
-            },
-            expires_delta=refresh_token_expires,
+        data={"sub": user.email, "id": user.id, "role": user.role, "type": "refresh"},
+        expires_delta=timedelta(days=REFRESH_TOKEN_EXPIRE),
         )
 
-        # Store refresh token in DB
         user.refresh_token = refresh_token
         db.commit()
         db.refresh(user)
 
-        return {
-            "user": {"id": user.id, "email": user.email, "role": user.role},
-            "access_token": access_token,
-            "refresh_token": refresh_token,
-            "token_type": "bearer",
-            "expires_in": ACCESS_TOKEN_EXPIRE * 60,  # seconds
-        }
+    # ✅ return ORM object directly
+        return user, access_token, refresh_token
+
 
     # ---------------- REFRESH TOKEN ----------------
     @staticmethod

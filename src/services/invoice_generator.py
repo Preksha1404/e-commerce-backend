@@ -9,28 +9,47 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 import os
 
+
 # --- FastAPI dependencies ---
 from src.core.database import get_db
 from src.models.users import User
 from src.utils.auth import get_current_active_user
 
+
 router = APIRouter(prefix="/invoice", tags=["Invoice"])
+
 
 # -------------------------------
 # Mock function to get invoice data
 # -------------------------------
 def get_invoice_data(order_id: int, db: Session):
-    """Fetch order and related data for invoice generation (sample data)."""
+    """Fetch order and related data for invoice generation."""
+    
+    order = {
+        "has_coupon": True,         # Assume coupon applied
+        "coupon_discount": 100.00,  # Discount amount from DB or logic
+    }
+
+    # Compute subtotal
+    items = [
+        {"sr": 1, "product": "Wireless Mouse", "sku": "MSE-001", "qty": 1, "price": 599.00, "subtotal": 599.00},
+        {"sr": 2, "product": "Keyboard", "sku": "KEY-002", "qty": 1, "price": 899.00, "subtotal": 899.00},
+    ]
+    subtotal = sum(i["subtotal"] for i in items)
+
+    # Apply discount if coupon exists
+    discount = order["coupon_discount"] if order["has_coupon"] else 0.00
+    tax = 0.00
+    shipping = 50.00
+    total = subtotal - discount + tax + shipping
+
     return {
         "invoice_no": f"INV-{order_id:05d}",
         "order_id": order_id,
         "invoice_date": "2025-11-04",
         "payment_method": "Credit Card",
         "customer_name": "John Doe",
-        "items": [
-            {"sr": 1, "product": "Wireless Mouse", "sku": "MSE-001", "qty": 1, "price": 599.00, "subtotal": 599.00},
-            {"sr": 2, "product": "Keyboard", "sku": "KEY-002", "qty": 1, "price": 899.00, "subtotal": 899.00},
-        ],
+        "items": items,
         "payment_info": {
             "id": "PMT-123456",
             "status": "Paid",
@@ -38,61 +57,18 @@ def get_invoice_data(order_id: int, db: Session):
             "reference": "TXN123456789",
         },
         "summary": {
-            "subtotal": 1498.00,
-            "discount": 0.00,
-            "tax": 0.00,
-            "shipping": 50.00,
-            "total": 1548.00,
+            "subtotal": subtotal,
+            "discount": discount,
+            "tax": tax,
+            "shipping": shipping,
+            "total": total,
         },
-    }
-
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
-from io import BytesIO
-from reportlab.lib.pagesizes import A4
-from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-from reportlab.lib.units import inch
-import os
-
-# --- FastAPI dependencies ---
-from src.core.database import get_db
-from src.models.users import User
-from src.utils.auth import get_current_active_user
-
-router = APIRouter(prefix="/invoice", tags=["Invoice"])
+    } 
 
 # -------------------------------
 # Mock function to get invoice data
 # -------------------------------
-def get_invoice_data(order_id: int, db: Session):
-    """Fetch order and related data for invoice generation (sample data)."""
-    return {
-        "invoice_no": f"INV-{order_id:05d}",
-        "order_id": order_id,
-        "invoice_date": "2025-11-04",
-        "payment_method": "Credit Card",
-        "customer_name": "John Doe",
-        "items": [
-            {"sr": 1, "product": "Wireless Mouse", "sku": "MSE-001", "qty": 1, "price": 599.00, "subtotal": 599.00},
-            {"sr": 2, "product": "Keyboard", "sku": "KEY-002", "qty": 1, "price": 899.00, "subtotal": 899.00},
-        ],
-        "payment_info": {
-            "id": "PMT-123456",
-            "status": "Paid",
-            "date": "2025-11-04",
-            "reference": "TXN123456789",
-        },
-        "summary": {
-            "subtotal": 1498.00,
-            "discount": 0.00,
-            "tax": 0.00,
-            "shipping": 50.00,
-            "total": 1548.00,
-        },
-    }
+ 
 RUPEE_PATH = r"C:\e-commerce-backend\uploads\pngegg.png"
  
 
@@ -161,14 +137,15 @@ def generate_pdf(invoice_data: dict, file_obj):
     info_table = Table(info_data, colWidths=[100, 200])
     info_table.setStyle(TableStyle([
         ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+        ("RIGHTPADDING", (1, 0), (1, -1),70),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
         ("LEFTPADDING", (0, 0), (-1, -1), 0),
         ("ALIGN", (0, 0), (-1, -1), "LEFT"),
     ]))
     elements.append(info_table)
-    elements.append(Spacer(1, 10))
-
+    elements.append(Spacer(1, 6))
+    
     # --- Customer Info ---
     elements.append(Paragraph(f"<b>Customer:</b> {invoice_data['customer_name']}", styles["Normal"]))
     elements.append(Spacer(1, 15))

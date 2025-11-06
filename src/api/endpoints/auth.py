@@ -34,33 +34,19 @@ def get_db():
 
 # ---------------- LOGIN ----------------
 @router.post("/login")
-def login(credentials: UserLogin, response: Response, db: Session = Depends(get_db)):
-    result = AuthService.login(credentials, db)
+def login(credentials: UserLogin, db: Session = Depends(get_db)):
+    user, access_token, refresh_token = AuthService.login(credentials, db)
 
     content = {
-        "user": result["user"],
+        "user": UserResponse.model_validate(user).model_dump(),
         "message": "Login successful"
     }
 
-    json_response = JSONResponse(content=content)
+    response = JSONResponse(content=content)
+    response.set_cookie("access_token", access_token, httponly=True, secure=True, samesite="None")
+    response.set_cookie("refresh_token", refresh_token, httponly=True, secure=True, samesite="None")
 
-    # Store tokens in secure HTTP-only cookies
-    json_response.set_cookie(
-        "access_token",
-        result["access_token"],
-        httponly=True,
-        secure=True,
-        samesite="None"
-    )
-    json_response.set_cookie(
-        "refresh_token",
-        result["refresh_token"],
-        httponly=True,
-        secure=True,
-        samesite="None"
-    )
-
-    return json_response
+    return response
 
 
 # ---------------- PROFILE ----------------
