@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, Cookie, BackgroundTasks
+from fastapi import APIRouter, Depends, Response, Cookie, BackgroundTasks, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from src.core.database import SessionLocal
@@ -8,6 +8,7 @@ from src.utils.auth import get_current_active_user
 from dotenv import load_dotenv
 import os
 from src.services.auth_service import AuthService
+from typing import Optional
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
@@ -44,7 +45,18 @@ def get_profile(current_user: User = Depends(get_current_active_user)):
     return current_user
 
 @router.post("/refresh")
-def refresh(response: Response, refresh_token: str = Cookie(...,include_in_schema=False), db: Session = Depends(get_db)):
+def refresh(
+    response: Response,
+    refresh_token: Optional[str] = Cookie(None, include_in_schema=False),
+    db: Session = Depends(get_db)
+):
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing refresh token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     new_access = AuthService.refresh_token(refresh_token, db)
     response.set_cookie("access_token", new_access, httponly=True)
     return {"access_token": new_access}

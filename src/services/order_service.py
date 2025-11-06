@@ -51,7 +51,7 @@ class OrderService:
             order_items.append(
                 OrderItem(
                     product_id=item.product_id,
-                    seller_id=item.seller_id,
+                    seller_id=product.seller_id,
                     quantity=item.quantity,
                     unit_price=unit_price,
                     total_price=total_price,

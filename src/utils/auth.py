@@ -4,18 +4,27 @@ from src.models.users import User
 from src.utils.functions import verify_token
 from src.core.database import get_db
 from src.schemas.users import UserRole,UserResponse
+from typing import Optional
+
 # Auth Dependencies
 def get_current_user(
-    access_token: str = Cookie(..., include_in_schema=False),
+    access_token: Optional[str] = Cookie(None, include_in_schema=False),
     db: Session = Depends(get_db)
 ):
+    if not access_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid or missing access token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     token_data = verify_token(access_token)
     user = db.query(User).filter(User.email == token_data.email).first()
     if user is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User does not exist",
-            headers={"WWW-Authenticate": "Bearer"}
+            headers={"WWW-Authenticate": "Bearer"},
         )
     return user
 
