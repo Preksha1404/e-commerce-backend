@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Response, Cookie, BackgroundTasks
+from fastapi import APIRouter, Depends, Response, Cookie, BackgroundTasks, HTTPException, status
 from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
@@ -15,6 +15,7 @@ from src.schemas.users import (
 )
 from src.utils.auth import get_current_active_user
 from src.services.auth_service import AuthService
+from typing import Optional
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
 

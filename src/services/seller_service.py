@@ -3,7 +3,8 @@ from fastapi import HTTPException, UploadFile, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 from typing import List, Optional
 import os
-
+from src.utils.email_templates import seller_welcome_template, seller_verification_template
+from src.services.email_service import send_email
 from src.models.users import User
 from src.schemas.users import SellerCreate, SellerUpdate
 from src.utils.functions import get_pwd_hash
@@ -24,7 +25,7 @@ class SellerService:
         return db.query(User).filter(User.role == "seller").all()
 
     @staticmethod
-    def register_seller(db: Session, seller: SellerCreate):
+    async def register_seller(db: Session, seller: SellerCreate):
         """Register new seller"""
         if db.query(User).filter(User.email == seller.email).first():
             return JSONResponse(
@@ -32,6 +33,7 @@ class SellerService:
                 content={"status": "error", "message": "Email already exists"},
             )
 
+        # Hash password and create new seller
         hashed_password = get_pwd_hash(seller.password)
         new_seller = User(
             email=seller.email,
@@ -48,6 +50,18 @@ class SellerService:
         db.add(new_seller)
         db.commit()
         db.refresh(new_seller)
+
+        # Generate email template
+        subject, html_content = seller_welcome_template(new_seller.full_name)
+
+        # Send email using generic function
+        await send_email(
+            background_tasks,
+            to_email=new_seller.email,
+            subject=subject,
+            html_content=html_content
+        )
+
         return new_seller
 
     @staticmethod
@@ -161,13 +175,19 @@ class SellerService:
 
         if business_changed:
             seller.is_active = False
-            await send_seller_verification_email(
-                email=seller.email,
-                full_name=seller.full_name,
-                store_name=seller.store_name,
-                store_address=seller.store_address,
-                store_description=seller.store_description or "",
-                background_tasks=background_tasks,
+
+            subject, html_content = seller_verification_template(
+                seller.full_name,
+                seller.store_name,
+                seller.store_address,
+                seller.store_description
+            )
+
+            await send_email(
+                background_tasks,
+                to_email=seller.email,
+                subject=subject,
+                html_content=html_content
             )
 
         db.commit()

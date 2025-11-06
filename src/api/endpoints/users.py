@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, BackgroundTasks
 from sqlalchemy.orm import Session
 from src.core.database import SessionLocal
 from src.models.users import User
@@ -23,11 +23,12 @@ def get_users(
     return UserService.get_all_users(db, current_user)
 
 @router.post("/register", response_model=UserResponse)
-def register_user(
+async def register_user(
     user: UserCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db)
 ):
-    return UserService.register_user(db, user)
+    return await UserService.register_user(db, user, background_tasks)
 
 @router.patch("/{user_id}", response_model=UserResponse)
 def update_user(

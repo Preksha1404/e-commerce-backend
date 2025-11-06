@@ -147,7 +147,6 @@ class AuthService:
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Inactive user account",
             )
-
         reset_token = generate_reset_token()
         hashed_token = hash_token(reset_token)
 
