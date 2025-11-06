@@ -26,7 +26,6 @@ class OrderItemSchema(BaseModel):
 
 class OrderItemCreateSchema(BaseModel):
     product_id: int
-    seller_id: int
     quantity: int
 
 class OrderCreateSchema(BaseModel):
