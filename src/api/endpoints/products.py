@@ -23,6 +23,11 @@ def list_products(db: Session = Depends(get_db)):
     return ProductService(db, None).list_products()
 
 
+@router.get("/category/{category_name}/", response_model=List[ProductResponse])
+def get_products_by_category_name(category_name: str, db: Session = Depends(get_db)):
+    return ProductService(db, None).get_products_by_category_name(category_name)
+
+
 @router.get("/sellers/{seller_id}/", response_model=List[ProductResponse])
 def get_seller_products(seller_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     return ProductService(db, current_user).get_seller_products(seller_id)

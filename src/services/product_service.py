@@ -4,6 +4,7 @@ from typing import List, Optional
 import cloudinary
 import cloudinary.uploader
 from src.models.products import Product, ProductImage
+from src.models.products import Category
 from src.schemas.products import AddStockRequest, BulkUploadResponse, BulkUploadRow
 from src.utils.bulk_upload import process_upload_file, validate_row, save_products_batch, generate_bulk_upload_template
 from src.utils.functions import generate_slug, generate_simple_sku
@@ -103,6 +104,24 @@ class ProductService:
         if not db_product:
             raise HTTPException(status_code=404, detail="Product not found")
         return db_product
+    
+    def get_products_by_category_name(self, category_name: str):
+        category = (
+            self.db.query(Category)
+            .filter(Category.name.ilike(category_name))
+            .first()
+        )
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+
+        products = (
+            self.db.query(Product)
+            .filter(Product.category_id == category.id)
+            .all()
+        )
+        if not products:
+            raise HTTPException(status_code=404, detail="No products found for this category")
+        return products
 
     async def update_product(
         self,
