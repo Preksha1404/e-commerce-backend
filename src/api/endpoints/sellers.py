@@ -102,8 +102,8 @@ def toggle_seller_block_status(
     seller_id: int = Path(..., ge=1),
     db: Session = Depends(get_db),
 ):
-
     """🔒 Toggle block/unblock seller (Admin-only access)."""
+    # --- Fetch seller ---
     seller = (
         db.query(User)
         .filter(User.id == seller_id, User.role == "seller")
@@ -113,12 +113,12 @@ def toggle_seller_block_status(
     if not seller:
         raise HTTPException(status_code=404, detail="Seller not found")
 
-    # Toggle the block status
+    # --- Toggle the block status ---
     seller.is_blocked = not seller.is_blocked
     db.commit()
     db.refresh(seller)
 
-    # Email details
+    # --- Email content ---
     if seller.is_blocked:
         subject = "🚫 Your Seller Account Has Been Blocked"
         html_content = f"""
@@ -149,7 +149,7 @@ def toggle_seller_block_status(
         </html>
         """
 
-    # Send notification email asynchronously
+    # --- Send email asynchronously ---
     send_email(
         email_to=seller.email,
         subject=subject,
@@ -157,13 +157,13 @@ def toggle_seller_block_status(
         background_tasks=background_tasks,
     )
 
-    # Response
+    # --- Response ---
     status_text = "blocked" if seller.is_blocked else "unblocked"
 
     return {
         "id": seller.id,
         "email": seller.email,
-        "full_name": seller.full_name,      
+        "full_name": seller.full_name,
         "is_blocked": seller.is_blocked,
         "status": status_text,
         "message": f"Seller {seller.full_name} has been {status_text} successfully.",
