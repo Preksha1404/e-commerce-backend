@@ -225,6 +225,7 @@ def generate_pdf(invoice_data: dict, file_obj):
     right_table = Table(right_col, colWidths=[120, 100])
     right_table.setStyle(TableStyle([
         ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
+        ("RIGHTPADDING", (1, 0), (1, -1), 50),
         ("FONTSIZE", (0, 0), (-1, -1), 10),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
         ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
