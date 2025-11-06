@@ -207,6 +207,14 @@ class OrderService:
         if not order_item:
             raise HTTPException(status_code=404, detail="Item not found for this seller in this order")
 
+        # Restrict invalid transitions
+        if order_item.status in ["shipped", "delivered"] and new_status == "pending":
+            raise HTTPException(status_code=400, detail="Cannot change status from shipped/delivered to pending")
+
+        if order_item.status == "delivered" and new_status == "shipped":
+            raise HTTPException(status_code=400, detail="Cannot change status from delivered to shipped")
+
+        # Update valid status
         order_item.status = new_status
         self.db.commit()
 
