@@ -4,7 +4,8 @@ from fastapi.responses import JSONResponse
 from src.models.users import User
 from src.schemas.users import UserCreate, UserUpdate
 from src.utils.functions import get_pwd_hash
-from src.utils.email import send_welcome_email
+from src.utils.email_templates import customer_welcome_template
+from src.services.email_service import send_email
 
 class UserService:
     @staticmethod 
@@ -23,14 +24,11 @@ class UserService:
         if db.query(User).filter(User.email == user.email).first():
             return JSONResponse(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                content={
-                    "status": "error",
-                    "message": "Email already exists"
-                }
+                content={"status": "error", "message": "Email already exists"}
             )
 
+        # Hash password and create new customer
         hashed_password = get_pwd_hash(user.password)
-        
         new_user = User(
             email=user.email,
             full_name=user.full_name,
@@ -44,8 +42,16 @@ class UserService:
         db.commit()
         db.refresh(new_user)
 
-        # Send welcome email
-        await send_welcome_email(new_user.email, new_user.full_name, background_tasks)
+        # Generate welcome email template
+        subject, html_content = customer_welcome_template(new_user.full_name)
+
+        # Send email using generic sender
+        await send_email(
+            background_tasks,
+            to_email=new_user.email,
+            subject=subject,
+            html_content=html_content
+        )
 
         return new_user
     

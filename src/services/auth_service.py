@@ -7,7 +7,8 @@ from src.core.database import SessionLocal
 from src.models.users import User
 from src.schemas.users import UserLogin, ChangePasswordRequest, ForgotPasswordRequest, ResetPasswordRequest
 from src.utils.functions import get_pwd_hash, verify_pwd, create_access_token, create_refresh_token, ACCESS_TOKEN_EXPIRE, REFRESH_TOKEN_EXPIRE, generate_reset_token, hash_token
-from src.utils.email import send_reset_email
+from src.services.email_service import send_email
+from src.utils.email_templates import password_reset_template
 
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
@@ -116,9 +117,9 @@ class AuthService:
         db.refresh(user)
 
         return {"message": "Password updated successfully"}
-    
+
     @staticmethod
-    async def forgot_password(request: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: Session):
+    async def forgot_password(request, background_tasks: BackgroundTasks, db: Session):
         """
         Step 1: Request password reset
         - Receives email
@@ -139,6 +140,7 @@ class AuthService:
                 detail="Inactive user account"
             )
         
+        # Generate token and save hashed token
         reset_token = generate_reset_token()
         hashed_token = hash_token(reset_token)
         
@@ -146,10 +148,13 @@ class AuthService:
         user.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
         db.commit()
 
-        # Send reset email in background
-        await send_reset_email(request.email, reset_token, background_tasks)
+        # Generate email template
+        subject, html_content = password_reset_template(user.email, reset_token)
 
-        return {"message": "A reset link has been sent"}
+        # Send reset email in background using generic sender
+        await send_email(background_tasks, to_email=user.email, subject=subject, html_content=html_content)
+
+        return {"message": "A reset link has been sent to your email"}
     
     @staticmethod
     async def reset_password(request: ResetPasswordRequest, db: Session):
