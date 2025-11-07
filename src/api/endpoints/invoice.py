@@ -33,3 +33,4 @@ def generate_invoice(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=invoice_{order_id}.pdf"}
     )
+

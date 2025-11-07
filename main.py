@@ -4,6 +4,7 @@ from fastapi import FastAPI, File, Form, UploadFile
 from src.core.database import engine, Base
 from src.api.endpoints import users, auth, sellers, products, profile, categories, invoice
 from src.models import *  # ✅ all models registered here
+
 from src.core.seed import seed_admin
 from contextlib import asynccontextmanager 
 from fastapi.middleware.cors import CORSMiddleware
