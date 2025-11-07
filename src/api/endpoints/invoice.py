@@ -20,8 +20,8 @@ def generate_invoice(
     if not invoice_data:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-    # ✅ Allow admin or the owner of the invoice
-    if current_user.role != "admin" and invoice_data.get("user_id") != current_user.id:
+    # ❌ Only allow the customer who owns the order
+    if invoice_data.get("user_id") != current_user.id:
         raise HTTPException(status_code=403, detail="Access forbidden")
 
     pdf_buffer = BytesIO()

@@ -9,94 +9,85 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 import os
 
-# --- FastAPI dependencies ---
-from src.core.database import get_db
+from src.models.orders import Order, OrderItem, Payment
+from src.models.products import Product
 from src.models.users import User
+from src.core.database import get_db
 from src.utils.auth import get_current_active_user
 
 router = APIRouter(prefix="/invoice", tags=["Invoice"])
 
 RUPEE_PATH = r"C:\e-commerce-backend\uploads\pngegg.png"
+LOGO_PATH = "assets/logo.png"
 
-# -------------------------------
-# Mock function to get invoice data
-# -------------------------------
+
 def get_invoice_data(order_id: int, db: Session):
-    """Fetch order and related data for invoice generation (mock, unique per order_id)."""
-    # Dynamic items using order_id
-    items = [
-        {
-            "sr": 1,
-            "product": f"Wireless Mouse {order_id}",
-            "sku": f"MSE-{order_id:03d}",
-            "qty": 1,
-            "price": 500.00 + order_id * 10,
-            "subtotal": 500.00 + order_id * 10,
-        },
-        {
-            "sr": 2,
-            "product": f"Keyboard {order_id}",
-            "sku": f"KEY-{order_id:03d}",
-            "qty": 1,
-            "price": 900.00 + order_id * 15,
-            "subtotal": 900.00 + order_id * 15,
-        },
-    ]
+    """Fetch order, user, items, and payment info."""
+    order = db.query(Order).filter(Order.id == order_id).first()
+    if not order:
+        return None
 
-    subtotal = sum(i["subtotal"] for i in items)
-    discount = 100.00 if order_id % 2 == 0 else 50.00  # vary discount
-    tax = 0.0
-    shipping = 50.0
-    total = subtotal - discount + tax + shipping
+    user = db.query(User).filter(User.id == order.user_id).first()
+    customer_name = getattr(user, "name", None) or getattr(user, "full_name", None) \
+                    or getattr(user, "username", None) or getattr(user, "email", "N/A")
 
-    # Mock user assignment
-    user_id = 65 + (order_id % 5)  # simulate different users
+    items = (
+        db.query(OrderItem, Product)
+        .join(Product, Product.id == OrderItem.product_id, isouter=True)
+        .filter(OrderItem.order_id == order_id)
+        .all()
+    )
+
+    item_list = []
+    for idx, (item, product) in enumerate(items, start=1):
+        item_list.append({
+            "sr": idx,
+            "product": product.name if product else "N/A",
+            "sku": product.sku if product else "N/A",
+            "qty": item.quantity,
+            "price": float(item.unit_price or 0),
+            "subtotal": float(item.total_price or 0),
+        })
+
+    payment = db.query(Payment).filter(Payment.order_id == order_id).first()
+    payment_info = {}
+    if payment:
+        payment_info = {
+            "id": payment.id,
+            "status": payment.status,
+            "date": str(getattr(payment, "payment_date", "")),
+            "reference": getattr(payment, "transaction_reference", ""),
+        }
+
+    subtotal = sum(i["subtotal"] for i in item_list)
+    total = subtotal  # discount/tax/shipping are 0 as before
 
     return {
-        "invoice_no": f"INV-{order_id:05d}",
-        "order_id": order_id,
-        "invoice_date": "2025-11-04",
-        "payment_method": "Credit Card",
-        "customer_name": f"Customer {order_id}",
-        "user_id": user_id,
-        "items": items,
-        "payment_info": {
-            "id": f"PMT-{order_id:06d}",
-            "status": "Paid",
-            "date": "2025-11-04",
-            "reference": f"TXN{order_id:09d}",
-        },
+        "invoice_no": f"INV-{order.id:05d}",
+        "order_id": order.id,
+        "invoice_date": str(order.created_at),
+        "payment_method": order.payment_method or "N/A",
+        "customer_name": customer_name,
+        "user_id": order.user_id,
+        "items": item_list,
+        "payment_info": payment_info,
         "summary": {
             "subtotal": subtotal,
-            "discount": discount,
-            "tax": tax,
-            "shipping": shipping,
+            "discount": 0.0,
+            "tax": 0.0,
+            "shipping": 0.0,
             "total": total,
         },
     }
 
-# -------------------------------
-# PDF generator
-# -------------------------------
+
 def generate_pdf(invoice_data, file_obj):
-    """Generate invoice PDF with ₹ image before amounts (dict or object-safe)."""
-    from types import SimpleNamespace
-    from reportlab.platypus import Table as InnerTable, TableStyle, Paragraph, Spacer, Image
+    """Generate invoice PDF with ₹ image."""
+    from reportlab.platypus import Table as InnerTable
 
-    if isinstance(invoice_data, dict):
-        invoice = SimpleNamespace(**invoice_data)
-    else:
-        invoice = invoice_data
-
-    doc = SimpleDocTemplate(
-        file_obj,
-        pagesize=A4,
-        rightMargin=40,
-        leftMargin=40,
-        topMargin=30,
-        bottomMargin=40,
-    )
-
+    doc = SimpleDocTemplate(file_obj, pagesize=A4,
+                            rightMargin=40, leftMargin=40,
+                            topMargin=30, bottomMargin=40)
     elements = []
     styles = getSampleStyleSheet()
     styles["Normal"].fontName = "Helvetica"
@@ -120,133 +111,93 @@ def generate_pdf(invoice_data, file_obj):
         ]))
         return cell
 
-    # Header
-    logo_path = "assets/logo.png"
-    if os.path.exists(logo_path):
-        logo = Image(logo_path, width=1.0 * inch, height=1.0 * inch)
-    else:
-        logo = Paragraph("<b>Cartify</b>", styles["CartifyTitle"])
-    header_data = [[logo, "", Paragraph("INVOICE", styles["RightTitle"])]]
-    header = Table(header_data, colWidths=[80, 350, 100])
-    header.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-                                ("ALIGN", (2, 0), (2, 0), "RIGHT"),
-                                ("BOTTOMPADDING", (0, 0), (-1, -1), 10)]))
+    logo = Image(LOGO_PATH, width=1.0*inch, height=1.0*inch) if os.path.exists(LOGO_PATH) else Paragraph("<b>Cartify</b>", styles["CartifyTitle"])
+    header = Table([[logo, "", Paragraph("INVOICE", styles["RightTitle"])]], colWidths=[80, 350, 100])
+    header.setStyle(TableStyle([("VALIGN", (0,0), (-1,-1), "MIDDLE"),
+                                ("ALIGN", (2,0), (2,0), "RIGHT"),
+                                ("BOTTOMPADDING", (0,0), (-1,-1), 10)]))
     elements.append(header)
     elements.append(Spacer(1, 12))
 
-    # Invoice info
-    info_data = [
-        ["Invoice No", getattr(invoice, "invoice_no", "")],
-        ["Order ID", getattr(invoice, "order_id", "")],
-        ["Invoice Date", getattr(invoice, "invoice_date", "")],
-        ["Payment Method", getattr(invoice, "payment_method", "")],
-    ]
-    info_table = Table(info_data, colWidths=[100, 200])
-    info_table.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-        ("RIGHTPADDING", (1, 0), (1, -1), 70),
-        ("FONTSIZE", (0, 0), (-1, -1), 10),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("LEFTPADDING", (0, 0), (-1, -1), 0),
-        ("ALIGN", (0, 0), (-1, -1), "LEFT"),
-    ]))
+    info_table = Table([
+        ["Invoice No", invoice_data["invoice_no"]],
+        ["Order ID", invoice_data["order_id"]],
+        ["Invoice Date", invoice_data["invoice_date"]],
+        ["Payment Method", invoice_data["payment_method"]]
+    ], colWidths=[100, 200])
+    info_table.setStyle(TableStyle([("FONTNAME", (0,0), (-1,-1), "Helvetica"),
+                                    ("FONTSIZE", (0,0), (-1,-1), 10),
+                                    ("BOTTOMPADDING", (0,0), (-1,-1), 3)]))
     elements.append(info_table)
-    elements.append(Spacer(1, 6))
+    elements.append(Spacer(1,6))
+    elements.append(Paragraph(f"<b>Customer:</b> {invoice_data['customer_name']}", styles["Normal"]))
+    elements.append(Spacer(1,15))
 
-    # Customer info
-    elements.append(Paragraph(f"<b>Customer:</b> {getattr(invoice, 'customer_name', '')}", styles["Normal"]))
-    elements.append(Spacer(1, 15))
-
-    # Product table
-    table_data = [["Sr", "Product", "SKU", "Qty", "Price", "Subtotal"]]
-    for item in getattr(invoice, "items", []):
+    table_data = [["Sr","Product","SKU","Qty","Price","Subtotal"]]
+    for item in invoice_data["items"]:
         table_data.append([
-            item.get("sr", ""),
-            item.get("product", ""),
-            item.get("sku", ""),
-            item.get("qty", ""),
-            currency_cell(item.get("price", 0.0)),
-            currency_cell(item.get("subtotal", 0.0)),
+            item["sr"],
+            item["product"],
+            item["sku"],
+            item["qty"],
+            currency_cell(item["price"]),
+            currency_cell(item["subtotal"])
         ])
-    item_table = Table(table_data, colWidths=[25, 160, 90, 40, 70, 70])
+    item_table = Table(table_data, colWidths=[25,160,90,40,70,70])
     item_table.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-        ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-        ("ALIGN", (3, 1), (-1, -1), "CENTER"),
-        ("FONTSIZE", (0, 0), (-1, -1), 9),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+        ("BACKGROUND",(0,0),(-1,0),colors.lightgrey),
+        ("GRID",(0,0),(-1,-1),0.25,colors.grey),
+        ("ALIGN",(3,1),(-1,-1),"CENTER"),
+        ("FONTSIZE",(0,0),(-1,-1),9),
+        ("TOPPADDING",(0,0),(-1,-1),4),
+        ("BOTTOMPADDING",(0,0),(-1,-1),4)
     ]))
     elements.append(item_table)
-    elements.append(Spacer(1, 15))
+    elements.append(Spacer(1,15))
 
-    # Payment info & summary
-    p = getattr(invoice, "payment_info", {})
-    s = getattr(invoice, "summary", {})
+    p = invoice_data["payment_info"]
+    s = invoice_data["summary"]
 
-    left_col = [
+    left_table = Table([
         [Paragraph("<b>Payment Info</b>", styles["NormalBold"]), ""],
-        ["Payment ID:", p.get("id", "")],
-        ["Payment Status:", p.get("status", "")],
-        ["Payment Date:", p.get("date", "")],
-        ["Transaction Reference:", p.get("reference", "")],
-    ]
-    left_table = Table(left_col, colWidths=[130, 200])
-    left_table.setStyle(TableStyle([
-        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, -1), 10),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]))
+        ["Payment ID:", p.get("id","")],
+        ["Status:", p.get("status","")],
+        ["Date:", p.get("date","")],
+        ["Reference:", p.get("reference","")]
+    ], colWidths=[130,200])
 
-    right_col = [
-        ["Subtotal", currency_cell(s.get("subtotal", 0.0))],
-        ["Discount", currency_cell(s.get("discount", 0.0))],
-        ["Tax (GST 0%)", currency_cell(s.get("tax", 0.0))],
-        ["Shipping", currency_cell(s.get("shipping", 0.0))],
-        [Paragraph("<b>Total Payable</b>", styles["NormalBold"]), currency_cell(s.get("total", 0.0))],
-    ]
-    right_table = Table(right_col, colWidths=[120, 100])
-    right_table.setStyle(TableStyle([
-        ("ALIGN", (1, 0), (-1, -1), "RIGHT"),
-        ("RIGHTPADDING", (1, 0), (1, -1), 50),
-        ("FONTSIZE", (0, 0), (-1, -1), 10),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-        ("FONTNAME", (0, -1), (-1, -1), "Helvetica-Bold"),
-        ("VALIGN", (0, 0), (-1, -1), "TOP"),
-    ]))
+    right_table = Table([
+        ["Subtotal", currency_cell(s.get("subtotal",0.0))],
+        ["Discount", currency_cell(s.get("discount",0.0))],
+        ["Tax", currency_cell(s.get("tax",0.0))],
+        ["Shipping", currency_cell(s.get("shipping",0.0))],
+        [Paragraph("<b>Total Payable</b>", styles["NormalBold"]), currency_cell(s.get("total",0.0))]
+    ], colWidths=[120,100])
 
-    payment_summary = Table([[left_table, right_table]], colWidths=[330, 170])
-    payment_summary.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
+    payment_summary = Table([[left_table,right_table]], colWidths=[330,170])
+    payment_summary.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"TOP")]))
     elements.append(payment_summary)
-    elements.append(Spacer(1, 15))
+    elements.append(Spacer(1,15))
 
-    # Notes
     elements.append(Paragraph("<b>Notes & Policies</b>", styles["NormalBold"]))
     elements.append(Paragraph(
         "Thank you for shopping with <b>Cartify</b>!<br/>"
         "For returns or exchanges, please visit our Returns Center within 7 days of delivery.<br/>"
         "Customer Support: support@cartify.com",
-        styles["Small"],
+        styles["Small"]
     ))
 
     doc.build(elements)
 
-# -------------------------------
-# FastAPI endpoint
-# -------------------------------
+
 @router.get("/{order_id}", response_class=StreamingResponse)
-def generate_invoice(
-    order_id: int,
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
+def generate_invoice(order_id: int, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     invoice_data = get_invoice_data(order_id, db)
     if not invoice_data:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-    # Access control: normal users only see their invoices
-    if invoice_data.get("user_id") != current_user.id and not getattr(current_user, "is_admin", False):
+    # Access control: only the customer can access their invoice
+    if invoice_data["user_id"] != current_user.id:
         raise HTTPException(status_code=403, detail="Access forbidden")
 
     pdf_buffer = BytesIO()
