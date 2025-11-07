@@ -21,6 +21,7 @@ RUPEE_PATH = r"C:\e-commerce-backend\uploads\pngegg.png"
 LOGO_PATH = "assets/logo.png"
 
 
+# ----------------- Fetch Invoice Data -----------------
 def get_invoice_data(order_id: int, db: Session):
     """Fetch order, user, items, and payment info."""
     order = db.query(Order).filter(Order.id == order_id).first()
@@ -28,8 +29,12 @@ def get_invoice_data(order_id: int, db: Session):
         return None
 
     user = db.query(User).filter(User.id == order.user_id).first()
-    customer_name = getattr(user, "name", None) or getattr(user, "full_name", None) \
-                    or getattr(user, "username", None) or getattr(user, "email", "N/A")
+    customer_name = (
+        getattr(user, "name", None)
+        or getattr(user, "full_name", None)
+        or getattr(user, "username", None)
+        or getattr(user, "email", "N/A")
+    )
 
     items = (
         db.query(OrderItem, Product)
@@ -60,7 +65,7 @@ def get_invoice_data(order_id: int, db: Session):
         }
 
     subtotal = sum(i["subtotal"] for i in item_list)
-    total = subtotal  # discount/tax/shipping are 0 as before
+    total = subtotal  # (tax, discount, etc. can be added later)
 
     return {
         "invoice_no": f"INV-{order.id:05d}",
@@ -81,8 +86,9 @@ def get_invoice_data(order_id: int, db: Session):
     }
 
 
+# ----------------- PDF Generator -----------------
 def generate_pdf(invoice_data, file_obj):
-    """Generate invoice PDF with ₹ image inline before amount."""
+    """Generate invoice PDF with properly aligned ₹ image or symbol."""
     from reportlab.platypus import Table as InnerTable
 
     doc = SimpleDocTemplate(
@@ -100,18 +106,33 @@ def generate_pdf(invoice_data, file_obj):
     styles.add(ParagraphStyle(name="NormalBold", fontSize=10, fontName="Helvetica-Bold", leading=14))
     styles.add(ParagraphStyle(name="Small", fontSize=9, fontName="Helvetica", textColor=colors.grey))
 
-    # ✅ Fixed indentation + inline ₹ image or symbol
+    # ✅ Currency cell helper
     def currency_cell(amount):
-        """Return ₹ with amount inline on the same line."""
-        amount_text = f"{amount:,.2f}"
-        if os.path.exists(RUPEE_PATH):
-            rupee_img_path = RUPEE_PATH.replace("\\", "/")  # for reportlab compatibility
-            return Paragraph(f'<img src="{rupee_img_path}" width="7" height="7"/> {amount_text}', styles["Normal"])
-        else:
-            return Paragraph(f"₹ {amount_text}", styles["Normal"])
+        """Return ₹ symbol or image perfectly inline with amount."""
+        try:
+            amount_value = float(amount)
+        except (ValueError, TypeError):
+            amount_value = 0.0
+        amount_text = f"{amount_value:,.2f}"
 
-    # Header
-    logo = Image(LOGO_PATH, width=1.0 * inch, height=1.0 * inch) if os.path.exists(LOGO_PATH) else Paragraph("<b>Cartify</b>", styles["CartifyTitle"])
+        if os.path.exists(RUPEE_PATH):
+            rupee_img_path = RUPEE_PATH.replace("\\", "/")
+            # Dynamically adjust spacing with invisible box
+            invisible_box ="&nbsp;" * max(1, len(amount_text) // 3)
+            return Paragraph(
+    f'<img src="{rupee_img_path}" width="7" height="7" valign="middle"/><font size="1">&#8202;</font>{amount_text}',
+    styles["Normal"]
+)
+
+        else:
+            return Paragraph(f"₹{amount_text}",styles["Normal"])
+
+    # ----------------- Header -----------------
+    logo = (
+        Image(LOGO_PATH, width=1.0 * inch, height=1.0 * inch)
+        if os.path.exists(LOGO_PATH)
+        else Paragraph("<b>Cartify</b>", styles["CartifyTitle"])
+    )
     header = Table([[logo, "", Paragraph("INVOICE", styles["RightTitle"])]], colWidths=[80, 350, 100])
     header.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -121,7 +142,7 @@ def generate_pdf(invoice_data, file_obj):
     elements.append(header)
     elements.append(Spacer(1, 12))
 
-    # Invoice info
+    # ----------------- Invoice Info -----------------
     info_table = Table([
         ["Invoice No", invoice_data["invoice_no"]],
         ["Order ID", invoice_data["order_id"]],
@@ -138,7 +159,7 @@ def generate_pdf(invoice_data, file_obj):
     elements.append(Paragraph(f"<b>Customer:</b> {invoice_data['customer_name']}", styles["Normal"]))
     elements.append(Spacer(1, 15))
 
-    # Items table
+    # ----------------- Items Table -----------------
     table_data = [["Sr", "Product", "SKU", "Qty", "Price", "Subtotal"]]
     for item in invoice_data["items"]:
         product_para = Paragraph(item["product"], styles["Normal"])
@@ -152,8 +173,7 @@ def generate_pdf(invoice_data, file_obj):
         ])
 
     PAGE_WIDTH, PAGE_HEIGHT = A4
-    usable_width = PAGE_WIDTH - 80  # 40 margin each side
-
+    usable_width = PAGE_WIDTH - 80  # margins
     col_widths = [
         0.06 * usable_width,  # Sr
         0.35 * usable_width,  # Product
@@ -162,7 +182,6 @@ def generate_pdf(invoice_data, file_obj):
         0.16 * usable_width,  # Price
         0.16 * usable_width,  # Subtotal
     ]
-
     item_table = Table(table_data, colWidths=col_widths)
     item_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
@@ -176,7 +195,7 @@ def generate_pdf(invoice_data, file_obj):
     elements.append(item_table)
     elements.append(Spacer(1, 15))
 
-    # Payment info & summary
+    # ----------------- Payment Info & Summary -----------------
     p = invoice_data["payment_info"]
     s = invoice_data["summary"]
 
@@ -201,7 +220,7 @@ def generate_pdf(invoice_data, file_obj):
     elements.append(payment_summary)
     elements.append(Spacer(1, 15))
 
-    # Notes
+    # ----------------- Notes -----------------
     elements.append(Paragraph("<b>Notes & Policies</b>", styles["NormalBold"]))
     elements.append(Paragraph(
         "Thank you for shopping with <b>Cartify</b>!<br/>"
@@ -213,13 +232,15 @@ def generate_pdf(invoice_data, file_obj):
     doc.build(elements)
 
 
+# ----------------- FastAPI Endpoint -----------------
 @router.get("/{order_id}", response_class=StreamingResponse)
 def generate_invoice(order_id: int, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     invoice_data = get_invoice_data(order_id, db)
     if not invoice_data:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-    if invoice_data["user_id"] != current_user.id:
+    # ✅ Admin can access all; users only their own invoices
+    if current_user.role != "admin" and invoice_data["user_id"] != current_user.id:
         raise HTTPException(status_code=403, detail="Access forbidden")
 
     pdf_buffer = BytesIO()
