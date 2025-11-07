@@ -80,15 +80,10 @@ def get_invoice_data(order_id: int, db: Session):
         },
     }
 
+
 def generate_pdf(invoice_data, file_obj):
-    """Generate invoice PDF with ₹ image."""
+    """Generate invoice PDF with ₹ image inline before amount."""
     from reportlab.platypus import Table as InnerTable
-    from reportlab.platypus import Table, TableStyle, Paragraph, Spacer, Image
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-    from reportlab.lib.units import inch
-    import os
 
     doc = SimpleDocTemplate(
         file_obj,
@@ -105,31 +100,23 @@ def generate_pdf(invoice_data, file_obj):
     styles.add(ParagraphStyle(name="NormalBold", fontSize=10, fontName="Helvetica-Bold", leading=14))
     styles.add(ParagraphStyle(name="Small", fontSize=9, fontName="Helvetica", textColor=colors.grey))
 
-    # Helper for currency cell
+    # ✅ Fixed indentation + inline ₹ image or symbol
     def currency_cell(amount):
+        """Return ₹ with amount inline on the same line."""
+        amount_text = f"{amount:,.2f}"
         if os.path.exists(RUPEE_PATH):
-            rupee_img = Image(RUPEE_PATH, width=6, height=6)
-            amt_para = Paragraph(f"{amount:,.2f}", styles["Normal"])
-            cell = InnerTable([[rupee_img, amt_para]], colWidths=[8, 45])
+            rupee_img_path = RUPEE_PATH.replace("\\", "/")  # for reportlab compatibility
+            return Paragraph(f'<img src="{rupee_img_path}" width="7" height="7"/> {amount_text}', styles["Normal"])
         else:
-            cell = Paragraph(f"₹{amount:,.2f}", styles["Normal"])
-        cell.setStyle(TableStyle([
-            ("ALIGN", (0, 0), (-1, -1), "RIGHT"),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 1),
-            ("RIGHTPADDING", (0, 0), (-1, -1), 0),
-            ("TOPPADDING", (0, 0), (-1, -1), 0),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 0),
-        ]))
-        return cell
+            return Paragraph(f"₹ {amount_text}", styles["Normal"])
 
     # Header
-    logo = Image(LOGO_PATH, width=1.0*inch, height=1.0*inch) if os.path.exists(LOGO_PATH) else Paragraph("<b>Cartify</b>", styles["CartifyTitle"])
+    logo = Image(LOGO_PATH, width=1.0 * inch, height=1.0 * inch) if os.path.exists(LOGO_PATH) else Paragraph("<b>Cartify</b>", styles["CartifyTitle"])
     header = Table([[logo, "", Paragraph("INVOICE", styles["RightTitle"])]], colWidths=[80, 350, 100])
     header.setStyle(TableStyle([
-        ("VALIGN", (0,0), (-1,-1), "MIDDLE"),
-        ("ALIGN", (2,0), (2,0), "RIGHT"),
-        ("BOTTOMPADDING", (0,0), (-1,-1), 10)
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("ALIGN", (2, 0), (2, 0), "RIGHT"),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10)
     ]))
     elements.append(header)
     elements.append(Spacer(1, 12))
@@ -142,17 +129,17 @@ def generate_pdf(invoice_data, file_obj):
         ["Payment Method", invoice_data["payment_method"]]
     ], colWidths=[120, 200])
     info_table.setStyle(TableStyle([
-        ("FONTNAME", (0,0), (-1,-1), "Helvetica"),
-        ("FONTSIZE", (0,0), (-1,-1), 10),
-        ("BOTTOMPADDING", (0,0), (-1,-1), 3)
+        ("FONTNAME", (0, 0), (-1, -1), "Helvetica"),
+        ("FONTSIZE", (0, 0), (-1, -1), 10),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 3)
     ]))
     elements.append(info_table)
-    elements.append(Spacer(1,6))
+    elements.append(Spacer(1, 6))
     elements.append(Paragraph(f"<b>Customer:</b> {invoice_data['customer_name']}", styles["Normal"]))
-    elements.append(Spacer(1,15))
+    elements.append(Spacer(1, 15))
 
-    # Items table with word wrapping for long product names
-    table_data = [["Sr","Product","SKU","Qty","Price","Subtotal"]]
+    # Items table
+    table_data = [["Sr", "Product", "SKU", "Qty", "Price", "Subtotal"]]
     for item in invoice_data["items"]:
         product_para = Paragraph(item["product"], styles["Normal"])
         table_data.append([
@@ -164,20 +151,30 @@ def generate_pdf(invoice_data, file_obj):
             currency_cell(item["subtotal"])
         ])
 
-    item_table = Table(table_data, colWidths=[25, 180, 90,80, 90, 70])
+    PAGE_WIDTH, PAGE_HEIGHT = A4
+    usable_width = PAGE_WIDTH - 80  # 40 margin each side
+
+    col_widths = [
+        0.06 * usable_width,  # Sr
+        0.35 * usable_width,  # Product
+        0.19 * usable_width,  # SKU
+        0.08 * usable_width,  # Qty
+        0.16 * usable_width,  # Price
+        0.16 * usable_width,  # Subtotal
+    ]
+
+    item_table = Table(table_data, colWidths=col_widths)
     item_table.setStyle(TableStyle([
-        ("BACKGROUND",(0,0),(-1,0),colors.lightgrey),
-        ("GRID",(0,0),(-1,-1),0.25,colors.grey),
-        ("ALIGN",(3,1),(-1,-1),"CENTER"),
-        ("VALIGN",(0,0),(-1,-1),"MIDDLE"),
-        ("FONTSIZE",(0,0),(-1,-1),9),
-        ("TOPPADDING",(0,0),(-1,-1),8),
-        ("BOTTOMPADDING",(0,0),(-1,-1),8)
-        ]))
-
+        ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+        ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+        ("ALIGN", (3, 1), (-1, -1), "CENTER"),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8)
+    ]))
     elements.append(item_table)
-    elements.append(Spacer(1,15))
-
+    elements.append(Spacer(1, 15))
 
     # Payment info & summary
     p = invoice_data["payment_info"]
@@ -185,24 +182,24 @@ def generate_pdf(invoice_data, file_obj):
 
     left_table = Table([
         [Paragraph("<b>Payment Info</b>", styles["NormalBold"]), ""],
-        ["Payment ID:", p.get("id","")],
-        ["Status:", p.get("status","")],
-        ["Date:", p.get("date","")],
-        ["Reference:", p.get("reference","")]
-    ], colWidths=[130,200])
+        ["Payment ID:", p.get("id", "")],
+        ["Status:", p.get("status", "")],
+        ["Date:", p.get("date", "")],
+        ["Reference:", p.get("reference", "")]
+    ], colWidths=[130, 200])
 
     right_table = Table([
-        ["Subtotal", currency_cell(s.get("subtotal",0.0))],
-        ["Discount", currency_cell(s.get("discount",0.0))],
-        ["Tax", currency_cell(s.get("tax",0.0))],
-        ["Shipping", currency_cell(s.get("shipping",0.0))],
-        [Paragraph("<b>Total Payable</b>", styles["NormalBold"]), currency_cell(s.get("total",0.0))]
-    ], colWidths=[120,100])
+        ["Subtotal", currency_cell(s.get("subtotal", 0.0))],
+        ["Discount", currency_cell(s.get("discount", 0.0))],
+        ["Tax", currency_cell(s.get("tax", 0.0))],
+        ["Shipping", currency_cell(s.get("shipping", 0.0))],
+        [Paragraph("<b>Total Payable</b>", styles["NormalBold"]), currency_cell(s.get("total", 0.0))]
+    ], colWidths=[120, 100])
 
-    payment_summary = Table([[left_table, right_table]], colWidths=[330,170])
-    payment_summary.setStyle(TableStyle([("VALIGN",(0,0),(-1,-1),"TOP")]))
+    payment_summary = Table([[left_table, right_table]], colWidths=[330, 170])
+    payment_summary.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP")]))
     elements.append(payment_summary)
-    elements.append(Spacer(1,15))
+    elements.append(Spacer(1, 15))
 
     # Notes
     elements.append(Paragraph("<b>Notes & Policies</b>", styles["NormalBold"]))
@@ -222,7 +219,6 @@ def generate_invoice(order_id: int, current_user: User = Depends(get_current_act
     if not invoice_data:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-    # Access control: only the customer can access their invoice
     if invoice_data["user_id"] != current_user.id:
         raise HTTPException(status_code=403, detail="Access forbidden")
 
