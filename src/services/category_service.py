@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status
-from src.models.products import Category as CategoryModel
+from src.models.products import Category as CategoryModel, Product
 from src.schemas.category import CategoryUpdate
 from slugify import slugify
 from src.core.cloudinary_config import cloudinary
@@ -69,15 +69,37 @@ def update_category_service(
 
 # ---------------- DELETE CATEGORY ---------------- #
 def delete_category_service(db: Session, category_id: int):
-    """✅ Deletes a category (admin-only)."""
+    # Find the category to delete
     category = db.query(CategoryModel).filter(CategoryModel.id == category_id).first()
+    
     if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+
+    # Find the default category
+    default_category = db.query(CategoryModel).filter(CategoryModel.name == "Default").first()
+    
+    if not default_category:
         raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Category with id {category_id} not found"
+            status_code=400,
+            detail="Default category not found. Please create a 'Default' category first."
         )
 
+    # Prevent deletion of Default category itself
+    if category.id == default_category.id:
+        raise HTTPException(status_code=400, detail="Cannot delete the Default category")
+
+    # Reassign all products under this category to Default
+    products_updated = (
+        db.query(Product)
+        .filter(Product.category_id == category.id)
+        .update({Product.category_id: default_category.id})
+    )
+
+    # Delete the category
     db.delete(category)
     db.commit()
 
-    return {"message": f"Category '{category.name}' deleted successfully."}
+    return {
+        "message": f"Category '{category.name}' deleted successfully. "
+                    "Products reassigned to 'Default' category." 
+    }

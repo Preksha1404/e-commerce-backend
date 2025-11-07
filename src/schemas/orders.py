@@ -1,13 +1,34 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Optional
 from datetime import datetime
 from src.models.orders import OrderStatus, PaymentStatus
 from src.schemas.addresses import AddressOut
-from src.schemas.products import ProductResponse
+from src.schemas.products import ProductImageResponse
 
-class OrderProductInfo(BaseModel):
+class OrderSellerProductInfo(BaseModel):
     name: str
     sku: str
+
+    class Config:
+        orm_mode = True
+
+class OrderProductInfo(BaseModel):
+    id: int
+    name: str
+    sku: str
+    images: List[ProductImageResponse] = Field(default_factory=list)
+
+    class Config:
+        orm_mode = True
+
+class OrderSellerItemSchema(BaseModel):
+    id: int
+    product: OrderSellerProductInfo
+    seller_id: int
+    quantity: int
+    unit_price: float
+    total_price: float
+    status: OrderStatus
 
     class Config:
         orm_mode = True
@@ -61,7 +82,7 @@ class OrderSellerResponseSchema(BaseModel):
     payment_status: PaymentStatus
     created_at: datetime
     address: Optional[AddressOut]
-    items: List[OrderItemSchema]
+    items: List[OrderSellerItemSchema]
 
     class Config:
         orm_mode = True

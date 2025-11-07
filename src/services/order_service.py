@@ -4,7 +4,7 @@ from src.models.orders import Order, OrderItem, OrderStatus, PaymentStatus
 from src.models.products import Product
 from src.models.addresses import Address
 from src.models.users import User
-from src.schemas.orders import OrderCreateSchema
+from src.schemas.orders import OrderCreateSchema, OrderResponseSchema
 from typing import List
 from src.utils.order_status import update_order_overall_status
 from src.services.product_service import ProductService
@@ -25,7 +25,7 @@ class OrderService:
             .all()
         )
 
-    def place_order(self, order_data: OrderCreateSchema, current_user: User) -> Order:
+    def place_order(self, order_data: OrderCreateSchema, current_user: User) -> OrderResponseSchema:
         # Validate address
         address = self.db.query(Address).filter(
             Address.id == order_data.address_id,
