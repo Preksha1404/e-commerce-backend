@@ -36,3 +36,4 @@ class User(Base):
     # Relationships
     products = relationship("src.models.products.Product", back_populates="seller", lazy="dynamic")
     addresses = relationship("Address", back_populates="user", cascade="all, delete-orphan")
+    coupons = relationship("Coupon", back_populates="user")
