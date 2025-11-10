@@ -5,25 +5,23 @@ from decimal import Decimal
 
 # --- Review Schemas ---
 class ReviewBase(BaseModel):
-    name: str
-    rating: float = Field(ge=0, le=5)
+    rating: float = Field(..., ge=0, le=5)
     comment: str
 
     model_config = {"from_attributes": True}
 
 class ReviewResponse(ReviewBase):
-    id: int
-    product_id: int
+    name: str
 
     model_config = {"from_attributes": True}
 
 class ReviewsWithAverage(BaseModel):
     average_rating: float
-    reviews: List[ReviewResponse] = Field(default_factory=list)
+    reviews: List[ReviewResponse]
 
     model_config = {"from_attributes": True}
 
-# ---------------- ProductCreate Schema ----------------
+# ---------------- ProductCreate Schema ----------------  
 class ProductCreate(BaseModel):
     name: str
     description: str

@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 from statistics import mean
 
+from src.utils.auth import get_current_active_user
 from src.core.database import SessionLocal
 from src.models import Product, Review
 from src.schemas.products import ReviewBase, ReviewResponse, ReviewsWithAverage
+from src.schemas.users import User
 
 router = APIRouter()
 
@@ -21,9 +23,10 @@ def get_db():
     tags=["Reviews"]
 )
 def add_review(
-    product_id: int,
     review: ReviewBase,
-    db: Session = Depends(get_db)
+    product_id: int = Path(..., ge=1),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
@@ -31,7 +34,7 @@ def add_review(
 
     new_review = Review(
         product_id=product_id,
-        name=review.name,
+        name=current_user.full_name,
         rating=review.rating,
         comment=review.comment
     )
@@ -40,13 +43,14 @@ def add_review(
     db.refresh(new_review)
     return new_review
 
+
 @router.get(
     "/api/products/{product_id}/reviews",
     response_model=ReviewsWithAverage,
     tags=["Reviews"]
 )
 def get_reviews(
-    product_id: int,
+    product_id: int = Path(..., ge=1),
     db: Session = Depends(get_db)
 ):
     product = db.query(Product).filter(Product.id == product_id).first()
