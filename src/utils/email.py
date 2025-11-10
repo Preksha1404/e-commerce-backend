@@ -14,11 +14,9 @@ SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 MAIL_FROM = os.getenv("MAIL_FROM", "noreply@yourstore.com")
 
 
-# ---------------------------------------------------------
-# BASE EMAIL SENDER (Background Task)
-# ---------------------------------------------------------
 def send_email_background(background_tasks: BackgroundTasks, message: Mail):
     """Send email asynchronously using FastAPI background task."""
+    
     def send_email_task():
         try:
             sg = SendGridAPIClient(SENDGRID_API_KEY)
@@ -160,6 +158,45 @@ def send_email(
     message = Mail(
         from_email=MAIL_FROM,
         to_emails=email_to,
+        subject=subject,
+        html_content=html_content,
+    )
+    send_email_background(background_tasks, message)
+
+
+async def send_customer_block_status_email(
+    email: str,
+    full_name: str,
+    is_blocked: bool,
+    background_tasks: BackgroundTasks,
+):
+    """Send email when a customer is blocked/unblocked by admin."""
+    status_text = "Blocked" if is_blocked else "Unblocked"
+    reason = (
+        "You have violated our platform’s policies."
+        if is_blocked
+        else "Your access has been restored. You can log in again."
+    )
+
+    subject = f"⚠️ Your Account Has Been {status_text}"
+
+    html_content = f"""
+    <html>
+        <body>
+            <h2>Account {status_text}</h2>
+            <p>Dear <strong>{full_name}</strong>,</p>
+            <p>Your account has been <strong>{status_text.lower()}</strong> by the admin.</p>
+            <p><strong>Reason:</strong> {reason}</p>
+            <p>If you have any questions, please contact our support team.</p>
+            <br />
+            <p>Regards,<br><strong>Admin Team</strong></p>
+        </body>
+    </html>
+    """
+
+    message = Mail(
+        from_email=MAIL_FROM,
+        to_emails=email,
         subject=subject,
         html_content=html_content,
     )

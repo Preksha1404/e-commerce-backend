@@ -19,14 +19,13 @@ def generate_invoice(
     invoice_data = get_invoice_data(order_id, db)
     if not invoice_data:
         raise HTTPException(status_code=404, detail="Invoice not found")
-
-    # ❌ Only allow the customer who owns the order
+  
     if invoice_data.get("user_id") != current_user.id:
         raise HTTPException(status_code=403, detail="Access forbidden")
 
-    pdf_buffer = BytesIO()
-    generate_pdf(invoice_data, pdf_buffer)
-    pdf_buffer.seek(0)
+    pdf_buffer = BytesIO() 
+    generate_pdf(invoice_data, pdf_buffer)  
+    pdf_buffer.seek(0)     
 
     return StreamingResponse(
         pdf_buffer,

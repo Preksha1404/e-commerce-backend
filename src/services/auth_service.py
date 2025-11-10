@@ -22,7 +22,7 @@ from src.utils.functions import (
 )
 from src.utils.email import send_reset_email
 
-# Environment variables with defaults for safety
+# Environment variables with defaults
 SECRET_KEY = os.getenv("SECRET_KEY", "your_secret_key")
 ALGORITHM = os.getenv("ALGORITHM", "HS256")
 
@@ -34,7 +34,6 @@ class AuthService:
     """
 
     # ---------------- LOGIN ----------------
-    # ✅ UPDATED AuthService.login
     @staticmethod
     def login(credentials: UserLogin, db: Session):
         user = db.query(User).filter(User.email == credentials.email).first()
@@ -43,35 +42,32 @@ class AuthService:
 
         if not user.is_active:
             raise HTTPException(status_code=403, detail="Account is inactive.")
+
         if user.is_blocked:
             raise HTTPException(status_code=403, detail="Account is blocked.")
+
         if user.role not in ["customer", "seller", "admin"]:
             raise HTTPException(status_code=403, detail="Not authorized.")
 
-    # Tokens
+        # Generate tokens
         access_token = create_access_token(
             data={"sub": user.email, "id": user.id, "role": user.role, "type": "access"},
             expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE),
         )
         refresh_token = create_refresh_token(
-        data={"sub": user.email, "id": user.id, "role": user.role, "type": "refresh"},
-        expires_delta=timedelta(days=REFRESH_TOKEN_EXPIRE),
+            data={"sub": user.email, "id": user.id, "role": user.role, "type": "refresh"},
+            expires_delta=timedelta(days=REFRESH_TOKEN_EXPIRE),
         )
 
         user.refresh_token = refresh_token
         db.commit()
         db.refresh(user)
 
-    # ✅ return ORM object directly
         return user, access_token, refresh_token
-
 
     # ---------------- REFRESH TOKEN ----------------
     @staticmethod
     def refresh_token(refresh_token: str, db: Session):
-        """
-        Validate refresh token and issue a new access token.
-        """
         if not refresh_token:
             raise HTTPException(status_code=401, detail="Missing refresh token")
 
@@ -89,14 +85,12 @@ class AuthService:
         if not user or user.refresh_token != refresh_token:
             raise HTTPException(status_code=401, detail="Invalid refresh token")
 
-        # Issue new access token
+        if user.is_blocked:
+            raise HTTPException(status_code=403, detail="Account is blocked.")
+
         new_access_token = create_access_token(
-            data={
-                "sub": user.email,
-                "id": user.id,
-                "role": user.role,
-                "type": "access",
-            }
+            data={"sub": user.email, "id": user.id, "role": user.role, "type": "access"},
+            expires_delta=timedelta(minutes=ACCESS_TOKEN_EXPIRE),
         )
 
         return {"access_token": new_access_token, "token_type": "bearer"}
@@ -104,18 +98,12 @@ class AuthService:
     # ---------------- CHANGE PASSWORD ----------------
     @staticmethod
     def change_password(request: ChangePasswordRequest, current_user: User, db: Session):
-        """
-        Allow user to change their password.
-        """
         user = db.query(User).filter(User.id == current_user.id).first()
-
         if not user:
             raise HTTPException(status_code=401, detail="Unauthorized")
 
         if user.role == "admin":
-            raise HTTPException(
-                status_code=403, detail="Admin users cannot change their password"
-            )
+            raise HTTPException(status_code=403, detail="Admin users cannot change password")
 
         if not verify_pwd(request.old_password, user.hashed_password):
             raise HTTPException(status_code=400, detail="Old password is incorrect")
@@ -128,25 +116,15 @@ class AuthService:
 
     # ---------------- FORGOT PASSWORD ----------------
     @staticmethod
-    async def forgot_password(
-        request: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: Session
-    ):
-        """
-        Step 1: Generate and email a reset token.
-        """
+    async def forgot_password(request: ForgotPasswordRequest, background_tasks: BackgroundTasks, db: Session):
         user = db.query(User).filter(User.email == request.email).first()
-
         if not user:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="User with this email does not exist",
-            )
-
+            raise HTTPException(status_code=404, detail="User with this email does not exist")
         if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Inactive user account",
-            )
+            raise HTTPException(status_code=400, detail="Inactive user account")
+        if user.is_blocked:
+            raise HTTPException(status_code=403, detail="Account is blocked")
+
         reset_token = generate_reset_token()
         hashed_token = hash_token(reset_token)
 
@@ -154,7 +132,6 @@ class AuthService:
         user.reset_token_expires = datetime.utcnow() + timedelta(hours=1)
         db.commit()
 
-        # Send reset email asynchronously
         background_tasks.add_task(send_reset_email, request.email, reset_token)
 
         return {"message": "A password reset link has been sent to your email."}
@@ -162,16 +139,10 @@ class AuthService:
     # ---------------- RESET PASSWORD ----------------
     @staticmethod
     async def reset_password(request: ResetPasswordRequest, db: Session):
-        """
-        Step 2: Verify reset token and update user password.
-        """
         hashed_token = hash_token(request.token)
         user = db.query(User).filter(User.reset_token == hashed_token).first()
-
         if not user:
-            raise HTTPException(
-                status_code=400, detail="Invalid or expired reset token"
-            )
+            raise HTTPException(status_code=400, detail="Invalid or expired reset token")
 
         if not user.reset_token_expires or user.reset_token_expires < datetime.utcnow():
             raise HTTPException(status_code=400, detail="Reset token has expired")
@@ -179,7 +150,6 @@ class AuthService:
         user.hashed_password = get_pwd_hash(request.new_password)
         user.reset_token = None
         user.reset_token_expires = None
-
         db.commit()
         db.refresh(user)
 
@@ -188,15 +158,10 @@ class AuthService:
     # ---------------- LOGOUT ----------------
     @staticmethod
     def logout(current_user: User, db: Session):
-        """
-        Remove user's refresh token to invalidate login session.
-        """
         user = db.query(User).filter(User.id == current_user.id).first()
-
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
 
         user.refresh_token = None
         db.commit()
-
         return {"message": "Successfully logged out"}

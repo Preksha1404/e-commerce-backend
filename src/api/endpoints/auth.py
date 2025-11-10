@@ -38,6 +38,8 @@ def get_db():
 def login(credentials: UserLogin, db: Session = Depends(get_db)):
     user, access_token, refresh_token = AuthService.login(credentials, db)
 
+     
+    
     content = {
         "user": UserResponse.model_validate(user).model_dump(),
         "message": "Login successful"

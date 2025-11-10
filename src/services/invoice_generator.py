@@ -1,29 +1,37 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from io import BytesIO
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
-from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, Image as RLImage
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 import os
+import requests
+import cloudinary
+from cloudinary.utils import cloudinary_url
+from jwt.exceptions import ExpiredSignatureError
 
 from src.models.orders import Order, OrderItem, Payment
 from src.models.products import Product
 from src.models.users import User
 from src.core.database import get_db
-from src.utils.auth import get_current_active_user
+from src.utils.auth import get_current_active_user, verify_token
 
 router = APIRouter(prefix="/invoice", tags=["Invoice"])
 
-RUPEE_PATH = r"C:\e-commerce-backend\uploads\pngegg.png"
-LOGO_PATH = "assets/logo.png"
+# ----------------- Cloudinary Configuration -----------------
+cloudinary.config(
+    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
+    api_key=os.getenv("CLOUDINARY_API_KEY"),
+    api_secret=os.getenv("CLOUDINARY_API_SECRET")
+)
 
+LOGO_PATH = "assets/logo.png"
 
 # ----------------- Fetch Invoice Data -----------------
 def get_invoice_data(order_id: int, db: Session):
-    """Fetch order, user, items, and payment info."""
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
         return None
@@ -65,7 +73,7 @@ def get_invoice_data(order_id: int, db: Session):
         }
 
     subtotal = sum(i["subtotal"] for i in item_list)
-    total = subtotal  # (tax, discount, etc. can be added later)
+    total = subtotal
 
     return {
         "invoice_no": f"INV-{order.id:05d}",
@@ -85,12 +93,26 @@ def get_invoice_data(order_id: int, db: Session):
         },
     }
 
+# ----------------- Cloudinary ₹ Symbol Helper -----------------
+def get_cloudinary_rupee_image(amount: float):
+    """Generate Cloudinary URL with ₹ overlay"""
+    formatted = f"₹{amount:,.2f}"
+    url, _ = cloudinary_url(
+        "transparent_placeholder.png",  # Must exist in your Cloudinary
+        overlay={
+            "font_family": "Roboto",
+            "font_size": 24,
+            "text": formatted
+        },
+        width=200,
+        height=40,
+        crop="fit",
+        color="black"
+    )
+    return url
 
 # ----------------- PDF Generator -----------------
 def generate_pdf(invoice_data, file_obj):
-    """Generate invoice PDF with properly aligned ₹ image or symbol."""
-    from reportlab.platypus import Table as InnerTable
-
     doc = SimpleDocTemplate(
         file_obj,
         pagesize=A4,
@@ -106,33 +128,24 @@ def generate_pdf(invoice_data, file_obj):
     styles.add(ParagraphStyle(name="NormalBold", fontSize=10, fontName="Helvetica-Bold", leading=14))
     styles.add(ParagraphStyle(name="Small", fontSize=9, fontName="Helvetica", textColor=colors.grey))
 
-    # ✅ Currency cell helper
+    # ----------------- Currency Cell -----------------
     def currency_cell(amount):
-        """Return ₹ symbol or image perfectly inline with amount."""
         try:
             amount_value = float(amount)
         except (ValueError, TypeError):
             amount_value = 0.0
-        amount_text = f"{amount_value:,.2f}"
 
-        if os.path.exists(RUPEE_PATH):
-            rupee_img_path = RUPEE_PATH.replace("\\", "/")
-            # Dynamically adjust spacing with invisible box
-            invisible_box ="&nbsp;" * max(1, len(amount_text) // 3)
-            return Paragraph(
-    f'<img src="{rupee_img_path}" width="7" height="7" valign="middle"/><font size="1">&#8202;</font>{amount_text}',
-    styles["Normal"]
-)
-
-        else:
-            return Paragraph(f"₹{amount_text}",styles["Normal"])
+        cloudinary_img_url = get_cloudinary_rupee_image(amount_value)
+        try:
+            resp = requests.get(cloudinary_img_url, timeout=5)
+            resp.raise_for_status()
+            img_buffer = BytesIO(resp.content)
+            return RLImage(img_buffer, width=50, height=15)
+        except Exception:
+            return Paragraph(f"₹{amount_value:,.2f}", styles["Normal"])
 
     # ----------------- Header -----------------
-    logo = (
-        Image(LOGO_PATH, width=1.0 * inch, height=1.0 * inch)
-        if os.path.exists(LOGO_PATH)
-        else Paragraph("<b>Cartify</b>", styles["CartifyTitle"])
-    )
+    logo = RLImage(LOGO_PATH, width=1.0 * inch, height=1.0 * inch) if os.path.exists(LOGO_PATH) else Paragraph("<b>Cartify</b>", styles["CartifyTitle"])
     header = Table([[logo, "", Paragraph("INVOICE", styles["RightTitle"])]], colWidths=[80, 350, 100])
     header.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -162,10 +175,9 @@ def generate_pdf(invoice_data, file_obj):
     # ----------------- Items Table -----------------
     table_data = [["Sr", "Product", "SKU", "Qty", "Price", "Subtotal"]]
     for item in invoice_data["items"]:
-        product_para = Paragraph(item["product"], styles["Normal"])
         table_data.append([
             item["sr"],
-            product_para,
+            Paragraph(item["product"], styles["Normal"]),
             item["sku"],
             item["qty"],
             currency_cell(item["price"]),
@@ -173,15 +185,8 @@ def generate_pdf(invoice_data, file_obj):
         ])
 
     PAGE_WIDTH, PAGE_HEIGHT = A4
-    usable_width = PAGE_WIDTH - 80  # margins
-    col_widths = [
-        0.06 * usable_width,  # Sr
-        0.35 * usable_width,  # Product
-        0.19 * usable_width,  # SKU
-        0.08 * usable_width,  # Qty
-        0.16 * usable_width,  # Price
-        0.16 * usable_width,  # Subtotal
-    ]
+    usable_width = PAGE_WIDTH - 80
+    col_widths = [0.06 * usable_width, 0.35 * usable_width, 0.19 * usable_width, 0.08 * usable_width, 0.16 * usable_width, 0.16 * usable_width]
     item_table = Table(table_data, colWidths=col_widths)
     item_table.setStyle(TableStyle([
         ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
@@ -195,7 +200,7 @@ def generate_pdf(invoice_data, file_obj):
     elements.append(item_table)
     elements.append(Spacer(1, 15))
 
-    # ----------------- Payment Info & Summary -----------------
+    # ----------------- Payment & Summary -----------------
     p = invoice_data["payment_info"]
     s = invoice_data["summary"]
 
@@ -231,15 +236,30 @@ def generate_pdf(invoice_data, file_obj):
 
     doc.build(elements)
 
-
 # ----------------- FastAPI Endpoint -----------------
 @router.get("/{order_id}", response_class=StreamingResponse)
-def generate_invoice(order_id: int, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
+def generate_invoice(request: Request, order_id: int, db: Session = Depends(get_db)):
+    """
+    Generate invoice PDF. Handles expired JWT gracefully.
+    """
+    # ----------------- Get token from Authorization header -----------------
+    token = request.headers.get("Authorization")
+    if not token or not token.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Authorization token missing")
+    token = token.split(" ")[1]
+
+    # ----------------- Verify token -----------------
+    try:
+        current_user = verify_token(token)
+    except ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
     invoice_data = get_invoice_data(order_id, db)
     if not invoice_data:
         raise HTTPException(status_code=404, detail="Invoice not found")
 
-    # ✅ Admin can access all; users only their own invoices
     if current_user.role != "admin" and invoice_data["user_id"] != current_user.id:
         raise HTTPException(status_code=403, detail="Access forbidden")
 

@@ -108,11 +108,4 @@ class UserService:
         db.commit()
         db.refresh(user)
 
-        action = "blocked" if user.is_blocked else "unblocked"
-
-        return {
-            "status": "success",
-            "message": f"Customer {user.full_name} has been {action}.",
-            "user_id": user.id,
-            "is_blocked": user.is_blocked
-        }
+        return user
