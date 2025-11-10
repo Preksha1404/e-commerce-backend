@@ -28,9 +28,8 @@ def list_products(
 @router.get("/approved/", response_model=List[ProductResponse])
 def list_approved_products(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user),
     ):
-    return ProductService(db, current_user).list_approved_products()
+    return ProductService(db).list_approved_products()
 
 @router.get("/category/{category_name}/", response_model=List[ProductResponse])
 def get_products_by_category_name(category_name: str, db: Session = Depends(get_db)):

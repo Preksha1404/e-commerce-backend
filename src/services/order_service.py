@@ -1,4 +1,4 @@
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from src.models.orders import Order, OrderItem, OrderStatus, PaymentStatus
 from src.models.products import Product
@@ -8,6 +8,8 @@ from src.schemas.orders import OrderCreateSchema, OrderResponseSchema
 from typing import List
 from src.utils.order_status import update_order_overall_status
 from src.services.product_service import ProductService
+from src.services.email_service import send_email
+from src.utils.email_templates import send_order_cancelled_email
 
 class OrderService:
     def __init__(self, db: Session):
@@ -85,12 +87,13 @@ class OrderService:
         self.db.refresh(order)
         return order
 
-    def cancel_order(self, order_id: int, current_user: User):
+    async def cancel_order(self, order_id: int, current_user: User, background_tasks=BackgroundTasks):
         if current_user.role != "customer":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
         order = self.db.query(Order).filter(
-            Order.id == order_id, Order.user_id == current_user.id
+            Order.id == order_id,
+            Order.user_id == current_user.id
         ).first()
 
         if not order:
@@ -98,16 +101,42 @@ class OrderService:
 
         if order.status in [OrderStatus.SHIPPED, OrderStatus.DELIVERED]:
             raise HTTPException(status_code=400, detail="Cannot cancel shipped or delivered order")
+
         if order.status == OrderStatus.CANCELLED:
             raise HTTPException(status_code=400, detail="Order is already cancelled")
 
+        # Update order status
         order.status = OrderStatus.CANCELLED
+
+        # Restore product stock
+        order_items = self.db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
+        for item in order_items:
+            product = self.db.query(Product).filter(Product.id == item.product_id).first()
+            if product:
+                product.stock += item.quantity  # increase stock
+
         self.db.commit()
+        self.db.refresh(order)
+
+        # Generate email content
+        email_data = send_order_cancelled_email(
+            user_email=current_user.email, 
+            user_name=current_user.full_name, 
+            order_id=order.id
+        )
+
+        # Send email asynchronously via background task
+        await send_email(
+            background_tasks,
+            to_email=current_user.email,
+            subject=email_data["subject"],
+            html_content=email_data["html_content"]
+        )
 
         return {
             "order_id": order.id,
             "status": order.status,
-            "message": "Order cancelled successfully",
+            "message": "Order cancelled successfully, stock restored",
         }
 
     # ---------------- Admin Method ---------------- #
@@ -135,7 +164,7 @@ class OrderService:
             for item in order.items:
                 if item.seller_id == current_user.id:
                     # Fetch minimal product info
-                    product = ProductService(self.db, None).get_product(item.product_id)
+                    product = self.db.query(Product).filter(Product.id == item.product_id).first()
                     seller_items.append({
                         "id": item.id,
                         "product": {"name": product.name, "sku": product.sku},
@@ -170,7 +199,7 @@ class OrderService:
         for item in order.items:
             if item.seller_id == current_user.id:
                 # Fetch minimal product info
-                product = ProductService(self.db, None).get_product(item.product_id)
+                product = self.db.query(Product).filter(Product.id == item.product_id).first()
                 seller_items.append({
                     "id": item.id,
                     "product": {

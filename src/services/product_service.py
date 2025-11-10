@@ -30,13 +30,6 @@ class ProductService:
         return products
 
     def list_approved_products(self):
-        # Only customers can view approved products
-        if not self.current_user or self.current_user.role != "customer":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Only customers can view approved products"
-            )
-
         products = (
             self.db.query(Product)
             .filter(Product.is_active == True, Product.is_deleted == False)
