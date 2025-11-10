@@ -133,3 +133,49 @@ def seller_verification_template(full_name: str, store_name: str, store_address:
     </html>
     """
     return subject, html_content
+
+def send_order_cancelled_email(user_email: str, user_name: str, order_id: int):
+    subject = f"Your Order #{order_id} Has Been Cancelled"
+
+    html_content = f"""
+    <html>
+    <body style="font-family: Arial, sans-serif; background-color:#f9f9f9; padding:20px;">
+        <div style="max-width:600px; margin:auto; background-color:#ffffff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1); overflow:hidden;">
+            <div style="background-color:#e63946; padding:20px; text-align:center; color:white;">
+                <h2 style="margin:0;">Order Cancellation Notice</h2>
+            </div>
+            <div style="padding:25px;">
+                <p style="font-size:16px;">Hi <strong>{user_name}</strong>,</p>
+                <p style="font-size:15px; color:#333;">
+                    We wanted to let you know that your order <strong>#{order_id}</strong> has been successfully
+                    <span style="color:#e63946; font-weight:600;">cancelled</span>.
+                </p>
+                <p style="font-size:15px; color:#333;">
+                    If you’ve already made a payment, don’t worry — your refund will be processed
+                    and credited back to your original payment method within <strong>15 business days</strong>.
+                </p>
+                <p style="font-size:15px; color:#333;">
+                    We’re sorry for the inconvenience. If you cancelled the order by mistake or have any concerns,
+                    please reach out to our support team, and we’ll be happy to assist you.
+                </p>
+                <div style="margin-top:30px; text-align:center;">
+                    <a href="https://yourwebsite.com/orders/{order_id}" 
+                       style="background-color:#457b9d; color:white; padding:12px 24px; text-decoration:none; border-radius:6px;">
+                       View Order Details
+                    </a>
+                </div>
+            </div>
+            <div style="background-color:#f1f1f1; padding:15px; text-align:center; font-size:13px; color:#555;">
+                <p>Thank you for shopping with <strong>YourStore</strong>.</p>
+                <p>If you have any questions, contact us at 
+                   <a href="mailto:support@yourstore.com" style="color:#457b9d;">support@yourstore.com</a></p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+
+    return {
+        "subject": subject,
+        "html_content": html_content
+    }

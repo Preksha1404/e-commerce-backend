@@ -4,7 +4,7 @@
 # /orders/{order_id} [GET] - Get details of a specific order
 # /orders/{order_id}/cancel [PATCH] - Cancel order (if not yet shipped
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, status, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
 from src.core.database import get_db
@@ -33,10 +33,11 @@ def place_order(
     return service.place_order(order_data, current_user)
 
 @router.patch("/orders/{order_id}/cancel", response_model=OrderCancelResponse)
-def cancel_order(
+async def cancel_order(
     order_id: int,
+    background_tasks:BackgroundTasks,
     current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db),
 ):
     service = OrderService(db)
-    return service.cancel_order(order_id, current_user)
+    return await service.cancel_order(order_id, current_user, background_tasks)
