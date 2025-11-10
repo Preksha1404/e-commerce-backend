@@ -47,3 +47,6 @@ sendgrid
 # Slug generation
 python-slugify==8.0.4
 reportlab==4.2.5
+
+# Fix missing modules
+requests==2.31.0

@@ -2,9 +2,8 @@ from decimal import Decimal
 from typing import List, Optional
 from fastapi import FastAPI, File, Form, UploadFile
 from src.core.database import engine, Base
-from src.api.endpoints import users, auth, sellers, products, profile, categories, invoice
+from src.api.endpoints import invoice, users, auth, sellers, products, profile, categories,review
 from src.models import *  # ✅ all models registered here
-
 from src.core.seed import seed_admin
 from contextlib import asynccontextmanager 
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,11 +14,10 @@ import os
 UPLOAD_DIR = "uploads"
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
-
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI):  
     seed_admin()
-    yield
+    yield 
 
 
 app = FastAPI(lifespan=lifespan)
@@ -60,4 +58,5 @@ app.include_router(profile.router)
 app.include_router(products.router)
 app.include_router(categories.router)
 app.include_router(invoice.router)
- 
+app.include_router(review.router)
+

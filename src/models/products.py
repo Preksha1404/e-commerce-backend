@@ -47,8 +47,7 @@ class Product(Base):
     seller = relationship("User", back_populates="products")   # ← FIXED import name
     images = relationship("ProductImage", back_populates="product")
     order_items = relationship("OrderItem", back_populates="product")  # ← ✅ added
-
-
+    reviews = relationship("Review", back_populates="product")
 class ProductImage(Base):
     __tablename__ = "product_images"
 
