@@ -162,6 +162,32 @@ class SellerService:
         db.refresh(seller)
         return seller
 
+    @staticmethod
+    def get_seller_by_id(db: Session, seller_id: int, current_user: User):
+        if current_user.role not in ["admin", "seller"]:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view seller details"
+            )
+
+        if current_user.role == "seller" and current_user.id != seller_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only view your own details"
+            )
+
+        seller = db.query(User).filter(
+            User.id == seller_id, User.role == "seller"
+        ).first()
+
+        if not seller:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Seller not found"
+            )
+
+        return seller
+    
     # ✅ Combined seller + product dashboard
     @staticmethod
     def get_seller_with_products(db: Session, seller_id: int, current_user: User):

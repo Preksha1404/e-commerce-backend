@@ -1,6 +1,6 @@
 from sqlalchemy.orm import Session
 from fastapi import HTTPException, status, UploadFile, Response
-from typing import List, Optional
+from typing import List, Optional, Union
 import cloudinary
 import cloudinary.uploader
 from src.models.products import Product, ProductImage
@@ -15,7 +15,33 @@ class ProductService:
         self.current_user = current_user
 
     def list_products(self):
-        products = self.db.query(Product).all()
+        # Only admin can view all products
+        if not self.current_user or self.current_user.role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins can view all products"
+            )
+
+        products = (
+            self.db.query(Product)
+            .filter(Product.is_deleted == False)
+            .all()
+        )
+        return products
+
+    def list_approved_products(self):
+        # Only customers can view approved products
+        if not self.current_user or self.current_user.role != "customer":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only customers can view approved products"
+            )
+
+        products = (
+            self.db.query(Product)
+            .filter(Product.is_active == True, Product.is_deleted == False)
+            .all()
+        )
         return products
 
     def get_seller_products(self, seller_id: int):
@@ -27,7 +53,7 @@ class ProductService:
 
         products = (
             self.db.query(Product)
-            .filter(Product.seller_id == seller_id)
+            .filter(Product.seller_id == seller_id, Product.is_deleted == False)
             .order_by(Product.created_at.desc())
             .all()
         )
@@ -100,27 +126,28 @@ class ProductService:
         return db_product
 
     def get_product(self, product_id: int):
-        db_product = self.db.query(Product).filter(Product.id == product_id).first()
+        db_product = (
+            self.db.query(Product)
+            .filter(Product.id == product_id, Product.is_deleted == False)
+            .first()
+        )
         if not db_product:
             raise HTTPException(status_code=404, detail="Product not found")
         return db_product
-    
+
     def get_products_by_category_name(self, category_name: str):
-        category = (
-            self.db.query(Category)
-            .filter(Category.name.ilike(category_name))
-            .first()
-        )
+        category = self.db.query(Category).filter(Category.name.ilike(category_name)).first()
         if not category:
             raise HTTPException(status_code=404, detail="Category not found")
 
         products = (
             self.db.query(Product)
-            .filter(Product.category_id == category.id)
+            .filter(Product.category_id == category.id, Product.is_deleted == False)
             .all()
         )
         if not products:
             raise HTTPException(status_code=404, detail="No products found for this category")
+
         return products
 
     async def update_product(
@@ -134,7 +161,7 @@ class ProductService:
         sku: Optional[str],
         category_id: Optional[int],
         is_featured: Optional[bool],
-        images: Optional[List[UploadFile]],
+        images: Optional[Union[List[UploadFile], List[str]]],
     ):
         if self.current_user.role != "seller":
             raise HTTPException(status_code=403, detail="Only sellers can update products")
@@ -239,16 +266,25 @@ class ProductService:
         db_product = self.db.query(Product).filter(Product.id == product_id).first()
 
         if not db_product:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Product with ID {product_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Product with ID {product_id} not found"
+            )
 
         if db_product.seller_id != self.current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this product")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to delete this product"
+            )
 
-        self.db.query(ProductImage).filter(ProductImage.product_id == product_id).delete()
-        self.db.delete(db_product)
+        # Soft delete instead of actual delete
+        db_product.is_deleted = True
+        db_product.is_active = False  # also deactivate product
+
         self.db.commit()
+        self.db.refresh(db_product)
 
-        return {"message": f"Product '{db_product.name}' deleted successfully"}
+        return {"message": f"Product '{db_product.name}' marked as deleted successfully"}
 
     def add_product_stock(self, product_id: int, stock_data: AddStockRequest):
         if self.current_user.role != "seller":

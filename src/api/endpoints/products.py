@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, UploadFile, File, status, Form, Body
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Union
 from src.core.database import get_db
 from src.models.users import User
 from src.schemas.products import BulkUploadResponse, ProductResponse, AddStockRequest
@@ -19,9 +19,18 @@ cloudinary.config(
 
 
 @router.get("/", response_model=List[ProductResponse])
-def list_products(db: Session = Depends(get_db)):
-    return ProductService(db, None).list_products()
+def list_products(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    ):
+    return ProductService(db, current_user).list_products()
 
+@router.get("/approved/", response_model=List[ProductResponse])
+def list_approved_products(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    ):
+    return ProductService(db, current_user).list_approved_products()
 
 @router.get("/category/{category_name}/", response_model=List[ProductResponse])
 def get_products_by_category_name(category_name: str, db: Session = Depends(get_db)):
@@ -66,7 +75,7 @@ async def update_product(
     sku: Optional[str] = Form(None),
     category_id: Optional[int] = Form(None),
     is_featured: Optional[bool] = Form(None),
-    images: Optional[List[UploadFile]] = File(None),
+    images: Optional[Union[List[UploadFile], List[str]]] = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
