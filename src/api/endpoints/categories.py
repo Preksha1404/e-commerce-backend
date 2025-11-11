@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from src.core.cloudinary_config import cloudinary
 from src.core.database import SessionLocal
-from src.models.products import Category as CategoryModel
+from src.models.products import Category as CategoryModel, Product
 from src.models.users import User
 from src.schemas.category import CategoryResponse, CategoryRead
 from src.services.category_service import create_category_service, delete_category_service
@@ -107,11 +107,20 @@ async def update_category(
 # ------------------- GET ALL Categories ------------------- #
 @router.get("/", response_model=List[CategoryResponse])
 def get_all_categories(db: Session = Depends(get_db)):
-    """✅ Retrieve all categories"""
-    categories = db.query(CategoryModel).all()
+    """✅ Retrieve all categories that have approved products"""
+    categories = (
+        db.query(CategoryModel)
+        .join(CategoryModel.products)
+        .filter(Product.status == "approved")  # or ProductStatus.APPROVED
+        .distinct(CategoryModel.id)
+        .all()
+    )
+
     if not categories:
-        raise HTTPException(status_code=404, detail="No categories found")
+        raise HTTPException(status_code=404, detail="No approved product categories found")
+
     return categories
+
 
 
 # ------------------- DELETE Category ------------------- #

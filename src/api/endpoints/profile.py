@@ -17,6 +17,7 @@ cloudinary.config(
     api_secret=os.getenv("CLOUDINARY_API_SECRET")
 )
 
+
 def get_db():
     db = SessionLocal()
     try:
@@ -24,7 +25,9 @@ def get_db():
     finally:
         db.close()
 
+
 router = APIRouter(prefix="/profile", tags=["Profile"])
+
 
 @router.post("/upload-picture")
 async def upload_profile_picture(
