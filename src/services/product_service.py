@@ -10,7 +10,7 @@ from src.utils.bulk_upload import process_upload_file, validate_row, save_produc
 from src.utils.functions import generate_slug, generate_simple_sku
 
 class ProductService:
-    def __init__(self, db: Session, current_user):
+    def __init__(self, db: Session, current_user=None):
         self.db = db
         self.current_user = current_user
 
