@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException, Path
 from sqlalchemy.orm import Session
 from statistics import mean
 
-from src.utils.auth import get_current_active_user
 from src.core.database import SessionLocal
 from src.models import Product, Review
 from src.schemas.products import ReviewBase, ReviewResponse, ReviewsWithAverage
 from src.schemas.users import User
+from src.utils.auth import get_current_active_user
 
 router = APIRouter()
 
@@ -17,6 +17,7 @@ def get_db():
     finally:
         db.close()
 
+# ---------------- Add Review ----------------
 @router.post(
     "/products/{product_id}/reviews",
     response_model=ReviewResponse,
@@ -26,7 +27,7 @@ def add_review(
     review: ReviewBase,
     product_id: int = Path(..., ge=1),
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    current_user: User = Depends(get_current_active_user)  # login required
 ):
     # ✅ Allow only customers
     if current_user.role.lower() != "customer":
@@ -62,7 +63,7 @@ def add_review(
     db.refresh(new_review)
     return new_review
 
-
+# ---------------- Get Reviews ----------------
 @router.get(
     "/products/{product_id}/reviews",
     response_model=ReviewsWithAverage,

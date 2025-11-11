@@ -1,3 +1,4 @@
+from datetime import datetime
 from fastapi import BackgroundTasks
 from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
@@ -128,47 +129,34 @@ async def send_seller_block_status_email(
     is_blocked: bool,
     background_tasks: BackgroundTasks
 ):
-    """Send email notification when a seller is blocked or unblocked by admin."""
+    """Send email notification when a seller is blocked or unblocked by admin using dark theme."""
+    
+    status_text = "blocked" if is_blocked else "unblocked"
+    subject = f"Your Seller Account Has Been {status_text.capitalize()}"
 
-    if is_blocked:
-        subject = "Account Access Restricted – Seller Account Temporarily Blocked"
-        html_content = f"""
-        <html>
-          <body style="font-family: Arial, sans-serif; color: #333;">
-            <h2 style="color:#d9534f;">⚠️ Account Access Restricted</h2>
+    html_content = f"""
+    <html>
+      <body style="margin:0; padding:0; background-color:#0d0d0d; font-family:'Helvetica Neue', Arial, sans-serif; color:#f0f0f0;">
+        <div style="max-width:600px; margin:0 auto; background-color:#1a1a1a; border-radius:10px; overflow:hidden;">
+          <div style="background-color:#000000; padding:20px; text-align:center;">
+            <img src="https://i.postimg.cc/tCqfC2rQ/cartify-logo.png" alt="Cartify Logo" width="120" />
+          </div>
+          <div style="padding:40px 30px;">
+            <h2 style="color:#ffffff;">Account {status_text.capitalize()}</h2>
             <p>Dear <strong>{full_name}</strong>,</p>
-            <p>We regret to inform you that your <strong>seller account</strong> has been temporarily blocked due to unusual activity or a potential policy violation.</p>
-            <p>For security reasons, access to your seller dashboard and related features has been restricted until this issue is resolved.</p>
-            <p>To restore access, please contact our Seller Support team at 
-               <a href="mailto:sellersupport@cartify.com"><strong>sellersupport@cartify.com</strong></a>
-               using your registered email address and include your store name along with any relevant details.</p>
-            <p>Our compliance team will review your case and assist you promptly.</p>
-            <br/>
-            <p>We appreciate your patience and cooperation in helping us maintain a secure and trustworthy marketplace.</p>
-            <br/>
-            <p>Warm regards,<br/>
-            <strong>The Cartify Seller Support Team</strong></p>
-            <p><a href="https://cartify.com">www.cartify.com</a> | <a href="mailto:sellersupport@cartify.com">sellersupport@cartify.com</a></p>
-          </body>
-        </html>
-        """
-    else:
-        subject = "✅ Seller Account Access Restored"
-        html_content = f"""
-        <html>
-          <body style="font-family: Arial, sans-serif; color: #333;">
-            <h2 style="color:#28a745;">✅ Seller Account Access Restored</h2>
-            <p>Dear <strong>{full_name}</strong>,</p>
-            <p>We’re pleased to inform you that access to your seller account has been restored. You can now log in and continue managing your products and orders as usual.</p>
-            <br/>
-            <p>Thank you for your understanding and cooperation.</p>
-            <br/>
-            <p>Warm regards,<br/>
-            <strong>The Cartify Seller Support Team</strong></p>
-            <p><a href="https://cartify.com">www.cartify.com</a> | <a href="mailto:sellersupport@cartify.com">sellersupport@cartify.com</a></p>
-          </body>
-        </html>
-        """
+            <p>
+              {"Your seller account has been temporarily blocked due to unusual activity or a potential policy violation. All your products are now hidden from customers." if is_blocked else "Access to your seller account has been restored. You can now log in and manage your products and orders."}
+            </p>
+            {f'<p>For assistance, contact <a href="mailto:sellersupport@cartify.com">sellersupport@cartify.com</a>.</p>' if is_blocked else ""}
+          </div>
+          <div style="background-color:#000000; padding:20px; text-align:center; color:#888888; font-size:13px;">
+            <p>© {datetime.now().year} Cartify. All rights reserved.</p>
+            <p><a href="https://cartify.com" style="color:#888888;">www.cartify.com</a> | <a href="mailto:sellersupport@cartify.com" style="color:#888888;">sellersupport@cartify.com</a></p>
+          </div>
+        </div>
+      </body>
+    </html>
+    """
 
     message = Mail(
         from_email=MAIL_FROM,
@@ -177,7 +165,6 @@ async def send_seller_block_status_email(
         html_content=html_content
     )
     send_email_background(background_tasks, message)
-
 
 
 # ---------------------------------------------------------
