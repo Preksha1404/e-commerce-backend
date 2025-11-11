@@ -378,3 +378,82 @@ class ProductService:
         except Exception as e:
             msg = str(e).splitlines()[0] if str(e) else "Bulk upload failed"
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
+
+    def search_products(self, query: str, status_filter: Optional[str] = None):
+        """
+        Search products by name, description, or SKU.
+        Only returns approved and active products for customers.
+        Admins can filter by status.
+        """
+        # Base query
+        base_query = (
+            self.db.query(Product)
+            .filter(Product.is_deleted == False)
+        )
+        
+        # If user is admin and status filter is provided, use it
+        is_admin = self.current_user and self.current_user.role == "admin"
+        if is_admin and status_filter:
+            base_query = base_query.filter(Product.status == status_filter)
+        # If user is not admin, only show approved and active products
+        elif not is_admin:
+            base_query = base_query.filter(
+                Product.status == "approved",
+                Product.is_active == True
+            )
+        # If admin but no status filter, show all non-deleted products
+        
+        # Search in name, description, or SKU (case-insensitive)
+        search_term = f"%{query}%"
+        products = (
+            base_query.filter(
+                (Product.name.ilike(search_term)) |
+                (Product.description.ilike(search_term)) |
+                (Product.sku.ilike(search_term))
+            )
+            .order_by(Product.created_at.desc())
+            .all()
+        )
+        
+        return products
+
+    def get_new_arrivals(self):
+        """
+        Get the latest 2 products from each category.
+        Only returns approved and active products.
+        """
+        # Get all active categories
+        categories = (
+            self.db.query(Category)
+            .filter(Category.is_active == True)
+            .all()
+        )
+        
+        new_arrivals = []
+        
+        for category in categories:
+            # Base query for products in this category
+            base_query = (
+                self.db.query(Product)
+                .filter(
+                    Product.category_id == category.id,
+                    Product.is_deleted == False,
+                    Product.status == "approved",
+                    Product.is_active == True
+                )
+            )
+            
+            # Get latest 2 products from this category
+            products = (
+                base_query
+                .order_by(Product.created_at.desc())
+                .limit(2)
+                .all()
+            )
+            
+            new_arrivals.extend(products)
+        
+        # Sort all products by created_at descending
+        new_arrivals.sort(key=lambda x: x.created_at, reverse=True)
+        
+        return new_arrivals
