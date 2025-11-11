@@ -18,7 +18,7 @@ def get_db():
         db.close()
 
 @router.post(
-    "/api/products/{product_id}/reviews",
+    "/products/{product_id}/reviews",
     response_model=ReviewResponse,
     tags=["Reviews"]
 )
@@ -28,9 +28,28 @@ def add_review(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
+    # ✅ Allow only customers
+    if current_user.role.lower() != "customer":
+        raise HTTPException(
+            status_code=403,
+            detail="Only customers can add reviews."
+        )
+
     product = db.query(Product).filter(Product.id == product_id).first()
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
+
+    # ✅ Prevent duplicate reviews
+    existing_review = (
+        db.query(Review)
+        .filter(Review.product_id == product_id, Review.name == current_user.full_name)
+        .first()
+    )
+    if existing_review:
+        raise HTTPException(
+            status_code=400,
+            detail="You have already reviewed this product."
+        )
 
     new_review = Review(
         product_id=product_id,
@@ -45,7 +64,7 @@ def add_review(
 
 
 @router.get(
-    "/api/products/{product_id}/reviews",
+    "/products/{product_id}/reviews",
     response_model=ReviewsWithAverage,
     tags=["Reviews"]
 )

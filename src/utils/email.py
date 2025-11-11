@@ -83,41 +83,37 @@ async def send_reset_email(
         html_content=html_content
     )
     send_email_background(background_tasks, message)
-
-
 # ---------------------------------------------------------
 # SELLER VERIFICATION EMAIL
 # ---------------------------------------------------------
 async def send_seller_verification_email(
     email: str,
     full_name: str,
-    store_name: str,
-    store_address: str,
-    store_description: str,
+    verification_link: str,
     background_tasks: BackgroundTasks
 ):
-    """Notify seller that their store details are under verification."""
-    subject = "🕓 Your Seller Account is Under Verification"
+    """Send seller verification email after registration."""
+    subject = "🛍️ Verify Your Seller Account Cartify"
     html_content = f"""
     <html>
-        <body>
-            <h2>Account Verification in Progress</h2>
-            <p>Dear <strong>{full_name}</strong>,</p>
-            <p>Your store details were recently updated and are now under review.</p>
-
-            <h3>Updated Store Details:</h3>
-            <ul>
-                <li><strong>Store Name:</strong> {store_name}</li>
-                <li><strong>Address:</strong> {store_address}</li>
-                <li><strong>Description:</strong> {store_description or "N/A"}</li>
-            </ul>
-
-            <p>We’ll notify you once the review is complete.</p>
-            <br />
-            <p>Regards,<br><strong>Cartify Team</strong></p>
-        </body>
+      <body style="font-family: Arial, sans-serif; color: #333;">
+        <h2 style="color:#007bff;">Welcome to Cartify, {full_name}! 🎉</h2>
+        <p>Thank you for registering as a seller on <strong>Cartify</strong>.</p>
+        <p>To complete your registration and start listing your products, please verify your email address by clicking the button below:</p>
+        <a href="{verification_link}" 
+           style="background-color:#007bff;color:white;padding:10px 20px;
+                  border-radius:5px;text-decoration:none;display:inline-block;margin-top:10px;">
+           Verify My Account
+        </a>
+        <p>If you didn’t create a seller account, you can safely ignore this email.</p>
+        <br/>
+        <p>— The Cartify Seller Onboarding Team</p>
+        <p><a href="https://cartify.com">www.cartify.com</a> | 
+           <a href="mailto:sellersupport@cartify.com">sellersupport@cartify.com</a></p>
+      </body>
     </html>
     """
+
     message = Mail(
         from_email=MAIL_FROM,
         to_emails=[email],
@@ -126,34 +122,33 @@ async def send_seller_verification_email(
     )
     send_email_background(background_tasks, message)
 
-
-# ---------------------------------------------------------
-# SELLER BLOCK / UNBLOCK EMAIL
-# ---------------------------------------------------------
 async def send_seller_block_status_email(
     email: str,
     full_name: str,
     is_blocked: bool,
     background_tasks: BackgroundTasks
 ):
-    """Send email when a seller is blocked/unblocked by admin."""
+    """Send email notification when a seller is blocked or unblocked by admin."""
+
     if is_blocked:
-        subject = "⚠️ Seller Account Access Restricted"
+        subject = "Account Access Restricted – Seller Account Temporarily Blocked"
         html_content = f"""
         <html>
-          <body>
-            <h2>⚠️ Seller Account Access Restricted</h2>
+          <body style="font-family: Arial, sans-serif; color: #333;">
+            <h2 style="color:#d9534f;">⚠️ Account Access Restricted</h2>
             <p>Dear <strong>{full_name}</strong>,</p>
-            <p>Your seller account has been <strong>temporarily blocked</strong> due to a potential policy violation,
-               incomplete verification, or unusual account activity.</p>
-            <p>This restriction prevents you from accessing your dashboard and listing new products until the issue is resolved.</p>
-            <p>To review or appeal this action, please contact our Seller Support team at:<br>
-               📧 <strong>sellersupport@example.com</strong><br>
-               Include your registered email, store name, and any relevant details to help us verify your account faster.</p>
+            <p>We regret to inform you that your <strong>seller account</strong> has been temporarily blocked due to unusual activity or a potential policy violation.</p>
+            <p>For security reasons, access to your seller dashboard and related features has been restricted until this issue is resolved.</p>
+            <p>To restore access, please contact our Seller Support team at 
+               <a href="mailto:sellersupport@cartify.com"><strong>sellersupport@cartify.com</strong></a>
+               using your registered email address and include your store name along with any relevant details.</p>
+            <p>Our compliance team will review your case and assist you promptly.</p>
             <br/>
-            <p>Thank you for your cooperation and understanding.</p>
+            <p>We appreciate your patience and cooperation in helping us maintain a secure and trustworthy marketplace.</p>
             <br/>
-            <p>— Cartify Seller Support Team</p>
+            <p>Warm regards,<br/>
+            <strong>The Cartify Seller Support Team</strong></p>
+            <p><a href="https://cartify.com">www.cartify.com</a> | <a href="mailto:sellersupport@cartify.com">sellersupport@cartify.com</a></p>
           </body>
         </html>
         """
@@ -161,12 +156,16 @@ async def send_seller_block_status_email(
         subject = "✅ Seller Account Access Restored"
         html_content = f"""
         <html>
-          <body>
-            <h2>✅ Seller Account Access Restored</h2>
+          <body style="font-family: Arial, sans-serif; color: #333;">
+            <h2 style="color:#28a745;">✅ Seller Account Access Restored</h2>
             <p>Dear <strong>{full_name}</strong>,</p>
-            <p>Your seller account access has been restored. You can now log in and manage your listings again.</p>
+            <p>We’re pleased to inform you that access to your seller account has been restored. You can now log in and continue managing your products and orders as usual.</p>
             <br/>
-            <p>— Cartify Seller Support Team</p>
+            <p>Thank you for your understanding and cooperation.</p>
+            <br/>
+            <p>Warm regards,<br/>
+            <strong>The Cartify Seller Support Team</strong></p>
+            <p><a href="https://cartify.com">www.cartify.com</a> | <a href="mailto:sellersupport@cartify.com">sellersupport@cartify.com</a></p>
           </body>
         </html>
         """
@@ -178,6 +177,13 @@ async def send_seller_block_status_email(
         html_content=html_content
     )
     send_email_background(background_tasks, message)
+
+
+
+# ---------------------------------------------------------
+# SELLER BLOCK / UNBLOCK EMAIL
+# ---------------------------------------------------------
+
 
 
 # ---------------------------------------------------------

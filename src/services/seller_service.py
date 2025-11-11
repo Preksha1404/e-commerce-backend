@@ -8,7 +8,7 @@ from src.services.email_service import send_email
 from src.models.users import User
 from src.schemas.users import SellerCreate, SellerUpdate
 from src.utils.functions import get_pwd_hash
-from src.utils.email import send_seller_verification_email, send_seller_block_status_email
+from src.utils.email import send_seller_block_status_email,send_seller_verification_email
 from src.models.products import Product
 from src.schemas.products import ProductCreate
 
