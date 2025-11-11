@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List, Optional, Union
 from src.core.database import get_db
 from src.models.users import User
+from src.models.products import Product
 from src.schemas.products import BulkUploadResponse, ProductResponse, AddStockRequest
 from src.utils.auth import get_current_active_user
 from src.services.product_service import ProductService
@@ -29,7 +30,12 @@ def list_products(
 def list_approved_products(
     db: Session = Depends(get_db),
     ):
-    return ProductService(db).list_approved_products()
+    products = (
+            db.query(Product)
+            .filter(Product.is_active == True, Product.is_deleted == False)
+            .all()
+        )
+    return products
 
 @router.get("/category/{category_name}/", response_model=List[ProductResponse])
 def get_products_by_category_name(category_name: str, db: Session = Depends(get_db)):

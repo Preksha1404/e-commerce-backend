@@ -10,7 +10,7 @@ from src.utils.bulk_upload import process_upload_file, validate_row, save_produc
 from src.utils.functions import generate_slug, generate_simple_sku
 
 class ProductService:
-    def __init__(self, db: Session, current_user=None):
+    def __init__(self, db: Session, current_user):
         self.db = db
         self.current_user = current_user
 
@@ -25,14 +25,6 @@ class ProductService:
         products = (
             self.db.query(Product)
             .filter(Product.is_deleted == False)
-            .all()
-        )
-        return products
-
-    def list_approved_products(self):
-        products = (
-            self.db.query(Product)
-            .filter(Product.is_active == True, Product.is_deleted == False)
             .all()
         )
         return products
