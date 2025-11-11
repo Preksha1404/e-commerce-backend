@@ -3,8 +3,13 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from src.models.coupons import Coupon
 from src.schemas.coupons import CouponCreate, CouponUpdate
+from src.services.cart_service import get_or_create_cart, _serialize_cart
 from src.models.users import User
+from src.models.orders import Cart
+from typing import Optional
 from src.utils.coupons import generate_coupon_code
+from src.schemas.coupons import ApplyCouponResponse
+from src.schemas.cart import CartOut
 
 class CouponService:
     def __init__(self, db: Session):
@@ -28,10 +33,8 @@ class CouponService:
         if current_user.role not in ["admin", "seller"]:
             raise HTTPException(status_code=403, detail="Not authorized to create coupons")
 
-        # Generate unique coupon code
         coupon_code = generate_coupon_code(coupon_data.coupon_name)
 
-        # Check uniqueness
         if self.db.query(Coupon).filter(Coupon.coupon_code == coupon_code).first():
             raise HTTPException(status_code=400, detail="Coupon code already exists")
 
@@ -40,6 +43,7 @@ class CouponService:
         new_coupon = Coupon(
             coupon_name=coupon_data.coupon_name,
             coupon_code=coupon_code,
+            coupon_description=coupon_data.coupon_description,
             discount_type=coupon_data.discount_type,
             discount_value=coupon_data.discount_value,
             minimum_value=coupon_data.minimum_value,
@@ -67,7 +71,6 @@ class CouponService:
         if not coupon:
             raise HTTPException(status_code=404, detail="Coupon not found")
 
-        # Permission check
         if current_user.role == "seller" and coupon.user_id != current_user.id:
             raise HTTPException(status_code=403, detail="Not authorized to update this coupon")
         
@@ -101,3 +104,51 @@ class CouponService:
         coupon.coupon_status = False
         self.db.commit()
         return coupon
+    
+    def apply_coupon_to_cart(self, user: User, coupon_code: str) -> ApplyCouponResponse:
+        if not coupon_code:
+            raise HTTPException(status_code=400, detail="Coupon code required")
+
+        # Validate coupon
+        coupon: Optional[Coupon] = (
+            self.db.query(Coupon)
+            .filter(Coupon.coupon_code == coupon_code, Coupon.coupon_status == True)
+            .first()
+        )
+
+        if not coupon:
+            raise HTTPException(status_code=404, detail="Coupon not found or inactive")
+
+        if coupon.expiry_date and coupon.expiry_date < datetime.utcnow():
+            return ApplyCouponResponse(
+                coupon_code=coupon.coupon_code,
+                valid=False,
+                message="Coupon expired"
+            )
+
+        # Get user cart
+        cart: Cart = get_or_create_cart(self.db, user.id)
+        cart_out: CartOut = _serialize_cart(self.db, cart)
+
+        # Check minimum cart value BEFORE applying coupon
+        if coupon.minimum_value and cart_out.subtotal < coupon.minimum_value:
+            return ApplyCouponResponse(
+                coupon_code=coupon.coupon_code,
+                valid=False,
+                message=f"Coupon not valid — minimum cart value should be ₹{coupon.minimum_value}",
+                discount_amount=0.0,
+                final_price=cart_out.subtotal,
+                items=cart_out.items
+            )
+
+        # Apply coupon if valid
+        cart_out = _serialize_cart(self.db, cart, coupon=coupon)
+
+        return ApplyCouponResponse(
+            coupon_code=coupon.coupon_code,
+            valid=True,
+            message="Coupon applied successfully",
+            discount_amount=cart_out.discount,
+            final_price=cart_out.total,
+            items=cart_out.items
+        )

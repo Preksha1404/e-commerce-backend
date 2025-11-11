@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Enum, ForeignKey
+from sqlalchemy import Table, Column, Integer, String, Float, Boolean, DateTime, Enum, ForeignKey
 from sqlalchemy.orm import relationship
 from datetime import datetime
 import enum
@@ -13,6 +13,7 @@ class Coupon(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     coupon_name = Column(String(100), nullable=False)
+    coupon_description = Column(String(255), nullable=True)
     coupon_code = Column(String(50), unique=True, nullable=False)
     discount_type = Column(Enum(DiscountType), nullable=False)
     discount_value = Column(Float, nullable=False)

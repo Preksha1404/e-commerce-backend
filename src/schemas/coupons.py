@@ -1,10 +1,12 @@
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from src.models.coupons import DiscountType
+from src.schemas.cart import CartItemOut
 
 class CouponBase(BaseModel):
     coupon_name: str = Field(...)
+    coupon_description: Optional[str] = Field(None, max_length=255)
     discount_type: DiscountType = Field(...)
     discount_value: float = Field(...)
     minimum_value: float = Field(0, ge=0)
@@ -16,6 +18,7 @@ class CouponCreate(CouponBase):
 
 class CouponUpdate(BaseModel):
     coupon_name: Optional[str]
+    coupon_description: Optional[str]
     discount_type: Optional[DiscountType]
     discount_value: Optional[float]
     minimum_value: Optional[float]
@@ -34,11 +37,12 @@ class CouponResponse(CouponBase):
         orm_mode = True
 
 class ApplyCouponRequest(BaseModel):
-    coupon_code: str = Field(...)
-    cart_total: float = Field(..., gt=0)
+    coupon_code: str = Field(..., description="Coupon code to apply")
 
 class ApplyCouponResponse(BaseModel):
+    coupon_code: str
     valid: bool
     message: str
     discount_amount: float = 0.0
     final_price: float = 0.0
+    items: List[CartItemOut] = []
