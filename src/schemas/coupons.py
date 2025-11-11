@@ -5,16 +5,14 @@ from src.models.coupons import DiscountType
 
 class CouponBase(BaseModel):
     coupon_name: str = Field(...)
-    coupon_code: Optional[str] = Field(None)
     discount_type: DiscountType = Field(...)
     discount_value: float = Field(...)
     minimum_value: float = Field(0, ge=0)
     expiry_date: datetime = Field(...)
-    coupon_status: bool = Field(default=True)
     usage_limit: int = Field(default=1, ge=1)
 
 class CouponCreate(CouponBase):
-    user_id: int  # Include creator's user_id
+    pass
 
 class CouponUpdate(BaseModel):
     coupon_name: Optional[str]
@@ -28,6 +26,7 @@ class CouponUpdate(BaseModel):
 class CouponResponse(CouponBase):
     id: int
     user_id: int
+    coupon_code: str
     created_at: datetime
     updated_at: datetime
 
