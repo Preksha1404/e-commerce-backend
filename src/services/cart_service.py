@@ -6,16 +6,35 @@ from src.models.products import Product, ProductImage
 from src.schemas.cart import CartOut, CartItemOut
 from src.models.coupons import Coupon
 
-def _compute_totals(items: List[CartItemOut], coupon: Optional["Coupon"] = None) -> (float, float, float):
-    subtotal = sum(i.line_total for i in items)
+def _compute_totals(db:Session, items: List[CartItemOut], coupon: Optional["Coupon"] = None) -> (float, float, float):
+    subtotal = 0.0
+
+    for item in items:
+        # Fetch product from DB
+        product = db.query(Product).filter(Product.id == item.product_id).first()
+        
+        if not product:
+            continue
+
+        price = product.price
+
+        # Apply per-product discount (flat amount)
+        if product.discount_price:
+            price = max(price - product.discount_price, 0)
+
+        # Update line total
+        item.line_total = price * item.quantity
+        subtotal += item.line_total
+
     discount = 0.0
 
+    # Apply coupon discount if applicable
     if coupon:
-        # Check minimum cart value
         if not coupon.minimum_value or subtotal >= coupon.minimum_value:
-            if getattr(coupon.discount_type, "value", coupon.discount_type) == "flat":
+            discount_type = getattr(coupon.discount_type, "value", coupon.discount_type)
+            if discount_type == "flat":
                 discount = coupon.discount_value or 0
-            elif getattr(coupon.discount_type, "value", coupon.discount_type) == "percentage":
+            elif discount_type == "percentage":
                 discount = subtotal * ((coupon.discount_value or 0) / 100)
 
     total = max(0.0, subtotal - discount)
@@ -57,7 +76,7 @@ def _serialize_cart(db: Session, cart: Cart, coupon: Optional["Coupon"] = None) 
             )
         )
 
-    subtotal, discount, total = _compute_totals(items, coupon=coupon)
+    subtotal, discount, total = _compute_totals(db, items, coupon=coupon)
     return CartOut(items=items, subtotal=subtotal, discount=discount, total=total, coupon=coupon.coupon_code if coupon else None)
 
 
