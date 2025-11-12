@@ -4,17 +4,43 @@ from typing import Optional, List
 from src.models.orders import Cart, CartItem
 from src.models.products import Product, ProductImage
 from src.schemas.cart import CartOut, CartItemOut
+from src.models.coupons import Coupon
 
+def _compute_totals(db:Session, items: List[CartItemOut], coupon: Optional["Coupon"] = None) -> (float, float, float):
+    subtotal = 0.0
 
-def _compute_totals(items: List[CartItemOut], coupon: Optional[str] = None) -> (float, float, float):
-    subtotal = sum(i.line_total for i in items)
+    for item in items:
+        # Fetch product from DB
+        product = db.query(Product).filter(Product.id == item.product_id).first()
+        
+        if not product:
+            continue
+
+        price = product.price
+
+        # Apply per-product discount (flat amount)
+        if product.discount_price:
+            price = max(price - product.discount_price, 0)
+
+        # Update line total
+        item.line_total = price * item.quantity
+        subtotal += item.line_total
+
     discount = 0.0
-    # Placeholder: integrate coupon rules here if needed, using coupon code
+
+    # Apply coupon discount if applicable
+    if coupon:
+        if not coupon.minimum_value or subtotal >= coupon.minimum_value:
+            discount_type = getattr(coupon.discount_type, "value", coupon.discount_type)
+            if discount_type == "flat":
+                discount = coupon.discount_value or 0
+            elif discount_type == "percentage":
+                discount = subtotal * ((coupon.discount_value or 0) / 100)
+
     total = max(0.0, subtotal - discount)
     return float(subtotal), float(discount), float(total)
 
-
-def _serialize_cart(db: Session, cart: Cart, coupon: Optional[str] = None) -> CartOut:
+def _serialize_cart(db: Session, cart: Cart, coupon: Optional["Coupon"] = None) -> CartOut:
     item_models = (
         db.query(CartItem, Product)
         .join(Product, CartItem.product_id == Product.id)
@@ -50,8 +76,8 @@ def _serialize_cart(db: Session, cart: Cart, coupon: Optional[str] = None) -> Ca
             )
         )
 
-    subtotal, discount, total = _compute_totals(items, coupon=coupon)
-    return CartOut(items=items, subtotal=subtotal, discount=discount, total=total, coupon=coupon)
+    subtotal, discount, total = _compute_totals(db, items, coupon=coupon)
+    return CartOut(items=items, subtotal=subtotal, discount=discount, total=total, coupon=coupon.coupon_code if coupon else None)
 
 
 def get_or_create_cart(db: Session, user_id: int) -> Cart:
