@@ -14,8 +14,6 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 load_dotenv()
 
-ENV = os.getenv("ENV", "local")
-IS_PROD = ENV == "production"
 SECRET_KEY=os.getenv("SECRET_KEY")
 ALGORITHM=os.getenv("ALGORITHM")
 
@@ -37,13 +35,8 @@ def login(credentials: UserLogin, response: Response, db: Session = Depends(get_
 
     response = JSONResponse(content=content)
 
-    cookie_params = {
-        "httponly": True,
-        "secure": IS_PROD,                  # True in production, False for local
-        "samesite": "None" if IS_PROD else "Lax"
-    }
-    response.set_cookie("access_token", access, **cookie_params)
-    response.set_cookie("refresh_token", refresh, **cookie_params)
+    response.set_cookie("access_token", access, httponly=True, secure=True, samesite="None")
+    response.set_cookie("refresh_token", refresh, httponly=True, secure=True, samesite="None")
 
     return response
 

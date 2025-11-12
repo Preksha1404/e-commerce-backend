@@ -36,14 +36,3 @@ class CouponResponse(CouponBase):
 
     class Config:
         orm_mode = True
-
-class ApplyCouponRequest(BaseModel):
-    coupon_code: str = Field(..., description="Coupon code to apply")
-
-class ApplyCouponResponse(BaseModel):
-    coupon_code: str
-    valid: bool
-    message: str
-    discount_amount: float = 0.0
-    final_price: float = 0.0
-    items: List[CartItemOut] = []
