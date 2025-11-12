@@ -30,6 +30,7 @@ class CouponResponse(CouponBase):
     id: int
     user_id: int
     coupon_code: str
+    used_count: int
     created_at: datetime
     updated_at: datetime
 

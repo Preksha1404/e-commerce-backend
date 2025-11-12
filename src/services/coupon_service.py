@@ -113,12 +113,25 @@ class CouponService:
         coupon: Optional[Coupon] = (
             self.db.query(Coupon)
             .filter(Coupon.coupon_code == coupon_code, Coupon.coupon_status == True)
+            .with_for_update()  # prevents race condition when multiple users apply same coupon
             .first()
         )
 
         if not coupon:
             raise HTTPException(status_code=404, detail="Coupon not found or inactive")
 
+        # Global Usage Limit Check
+        if coupon.used_count >= coupon.usage_limit:
+            return ApplyCouponResponse(
+                coupon_code=coupon.coupon_code,
+                valid=False,
+                message="Coupon usage limit reached",
+                discount_amount=0.0,
+                final_price=0.0,
+                items=[]
+            )
+
+        # Expiry check
         if coupon.expiry_date and coupon.expiry_date < datetime.utcnow():
             return ApplyCouponResponse(
                 coupon_code=coupon.coupon_code,
@@ -126,11 +139,11 @@ class CouponService:
                 message="Coupon expired"
             )
 
-        # Get user cart
+        # User cart
         cart: Cart = get_or_create_cart(self.db, user.id)
         cart_out: CartOut = _serialize_cart(self.db, cart)
 
-        # Check minimum cart value BEFORE applying coupon
+        # Minimum order value check
         if coupon.minimum_value and cart_out.subtotal < coupon.minimum_value:
             return ApplyCouponResponse(
                 coupon_code=coupon.coupon_code,
@@ -141,8 +154,12 @@ class CouponService:
                 items=cart_out.items
             )
 
-        # Apply coupon if valid
+        # Apply coupon
         cart_out = _serialize_cart(self.db, cart, coupon=coupon)
+
+        # Update Usage Countc
+        coupon.used_count += 1
+        self.db.commit()
 
         return ApplyCouponResponse(
             coupon_code=coupon.coupon_code,

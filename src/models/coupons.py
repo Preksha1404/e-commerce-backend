@@ -21,6 +21,7 @@ class Coupon(Base):
     expiry_date = Column(DateTime, nullable=False)
     coupon_status = Column(Boolean, default=True)
     usage_limit = Column(Integer, default=1)
+    used_count = Column(Integer, default=0, nullable=False)
     
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)  # Owner of coupon
     user = relationship("User", back_populates="coupons")  # Relationship with User
