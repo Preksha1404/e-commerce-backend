@@ -156,11 +156,11 @@ class ProductService:
             .filter(Product.id == product_id, Product.seller_id == self.current_user.id)
             .first()
         )
-
+        
         if not db_product:
             raise HTTPException(status_code=404, detail="Product not found")
 
-        # Clean helper — convert "", "null", "None", "undefined" → None
+        # Helper to clean invalid strings
         def clean_value(value):
             if value is None:
                 return None
@@ -174,16 +174,15 @@ class ProductService:
         name = clean_value(name)
         description = clean_value(description)
         sku = clean_value(sku)
-        is_featured = clean_value(is_featured)
 
-        # Handle numeric safely
+        # Handle numerics safely
         try:
             price = float(price) if clean_value(price) is not None else None
         except (ValueError, TypeError):
             price = None
 
         try:
-            discount_price = str(discount_price) if clean_value(discount_price) is not None else None
+            discount_price = float(discount_price) if clean_value(discount_price) is not None else None
         except (ValueError, TypeError):
             discount_price = None
 
@@ -197,15 +196,11 @@ class ProductService:
         except (ValueError, TypeError):
             category_id = None
 
-        # Clean valid images
-        valid_images = []
-        if images:
-            for img in images:
-                if isinstance(img, UploadFile) and img.filename.strip():
-                    valid_images.append(img)
-        images = valid_images if valid_images else None
+        # Keep boolean values as-is
+        if isinstance(is_featured, str):
+            is_featured = is_featured.lower() == "true"
 
-        # Update only valid non-empty fields
+        # Update non-empty fields
         form_fields = {
             "name": name,
             "description": description,
@@ -216,17 +211,20 @@ class ProductService:
             "category_id": category_id,
             "is_featured": is_featured,
         }
-
         for key, value in form_fields.items():
             if value is not None:
                 setattr(db_product, key, value)
 
         # Handle image uploads
         if images:
+            # Delete existing images
             self.db.query(ProductImage).filter(ProductImage.product_id == product_id).delete()
+            self.db.flush()  # ensures delete is applied before inserting new ones
+
             for index, image in enumerate(images, start=1):
                 if not image.content_type.startswith("image/"):
                     raise HTTPException(status_code=400, detail=f"Invalid file type: {image.filename}")
+
                 try:
                     upload_result = cloudinary.uploader.upload(
                         image.file,
@@ -235,7 +233,12 @@ class ProductService:
                     )
                     image_url = upload_result.get("secure_url")
                     if image_url:
-                        self.db.add(ProductImage(product_id=db_product.id, url=image_url, position=index))
+                        new_image = ProductImage(
+                            product_id=db_product.id,
+                            url=image_url,
+                            position=index
+                        )
+                        self.db.add(new_image)
                 except Exception as e:
                     raise HTTPException(status_code=500, detail=f"Image upload failed: {str(e)}")
 
@@ -243,8 +246,17 @@ class ProductService:
         db_product.status = "pending"
         db_product.is_active = False
 
+        # Commit once
         self.db.commit()
         self.db.refresh(db_product)
+
+        db_product.images = (
+        self.db.query(ProductImage)
+        .filter(ProductImage.product_id == db_product.id)
+        .order_by(ProductImage.position)
+        .all()
+        )
+
         return db_product
 
     def delete_product(self, product_id: int):
