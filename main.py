@@ -3,7 +3,7 @@ from typing import List, Optional
 from fastapi import FastAPI, File, Form, UploadFile
 from src.core.database import engine, Base
 from src.api.endpoints import users, auth, sellers, products, profile, orders, user_orders, seller_orders
-from src.api.endpoints import users, auth, sellers, products, profile, cart, addresses
+from src.api.endpoints import users, auth, sellers, products, profile, cart, addresses, payments
 from src.core.seed import seed_admin, seed_default_category
 from contextlib import asynccontextmanager  
 from fastapi.middleware.cors import CORSMiddleware
@@ -68,3 +68,4 @@ app.include_router(seller_orders.router)
 app.include_router(categories.router)
 app.include_router(cart.router)
 app.include_router(addresses.router)
+app.include_router(payments.router)

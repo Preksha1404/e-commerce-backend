@@ -50,7 +50,7 @@ class Order(Base):
     user_id = Column(Integer, ForeignKey('users.id'), nullable=False)
     total_amount = Column(Float, default=0.0)
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING)
-    payment_status = Column(Enum(PaymentStatus), default=PaymentStatus.FAILED)
+    payment_status = Column(Enum(PaymentStatus, native_enum=False, length=20), default=PaymentStatus.FAILED)
     address_id = Column(Integer, ForeignKey("addresses.id"), nullable=False)
     payment_method = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)

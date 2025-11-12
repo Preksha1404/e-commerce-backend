@@ -15,7 +15,7 @@ class OrderService:
 
     # ---------------- User Methods ---------------- #
     def get_user_orders(self, current_user: User) -> List[Order]:
-        if current_user.role != "customer":
+        if current_user.role.value != "customer":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
         
         return (
@@ -62,7 +62,8 @@ class OrderService:
                 )
             )
 
-        # Create order
+        # Create order with payment_status=FAILED initially
+        # Stock will only be deducted when payment succeeds (via webhook)
         order = Order(
             user_id=current_user.id,
             address_id=address.id,
@@ -74,19 +75,17 @@ class OrderService:
         self.db.add(order)
         self.db.flush()  # Get order.id
 
-        # Add order items & update stock
+        # Add order items (DO NOT deduct stock here - will be deducted on payment success)
         for oi in order_items:
             oi.order_id = order.id
             self.db.add(oi)
-            product = self.db.query(Product).filter(Product.id == oi.product_id).first()
-            product.stock -= oi.quantity
 
         self.db.commit()
         self.db.refresh(order)
         return order
 
     def cancel_order(self, order_id: int, current_user: User):
-        if current_user.role != "customer":
+        if current_user.role.value != "customer":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
         order = self.db.query(Order).filter(
@@ -112,14 +111,14 @@ class OrderService:
 
     # ---------------- Admin Method ---------------- #
     def get_all_orders(self, current_user: User) -> List[Order]:
-        if current_user.role != "admin":
+        if current_user.role.value != "admin":
             raise HTTPException(status_code=403, detail="Not authorized")
 
         return self.db.query(Order).order_by(Order.created_at.desc()).all()
     
     # ---------------- Seller Methods ---------------- #
     def get_seller_orders(self, current_user: User) -> List[dict]:
-        if current_user.role != "seller":
+        if current_user.role.value != "seller":
             raise HTTPException(status_code=403, detail="Not authorized")
 
         orders = (
@@ -159,7 +158,7 @@ class OrderService:
         return seller_orders
     
     def get_seller_order_details(self, order_id: int, current_user: User) -> dict:
-        if current_user.role != "seller":
+        if current_user.role.value != "seller":
             raise HTTPException(status_code=403, detail="Not authorized")
 
         order = self.db.query(Order).filter(Order.id == order_id).first()
@@ -199,7 +198,7 @@ class OrderService:
         }
 
     def update_order_item_status(self, order_id: int, item_id: int, new_status: OrderStatus, current_user: User):
-        if current_user.role != "seller":
+        if current_user.role.value != "seller":
             raise HTTPException(status_code=403, detail="Only sellers can update item status")
 
         order_item = self.db.query(OrderItem).filter(
