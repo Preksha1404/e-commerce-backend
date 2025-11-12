@@ -52,12 +52,14 @@ class OrderItemCreateSchema(BaseModel):
 class OrderCreateSchema(BaseModel):
     address_id: int
     payment_method: str
-    items: List[OrderItemCreateSchema]
 
 class OrderResponseSchema(BaseModel):
     id: int
     user_id: int
     total_amount: float
+    discount: float = 0.0
+    subtotal: float = 0.0
+    coupon_code: Optional[str] = None
     status: OrderStatus
     payment_status: PaymentStatus
     address: Optional[AddressOut]
@@ -66,8 +68,9 @@ class OrderResponseSchema(BaseModel):
     updated_at: Optional[datetime]
     items: List[OrderItemSchema]
 
-    class Config:
-        orm_mode = True
+    model_config = {
+        "from_attributes": True
+    }
 
 class OrderCancelResponse(BaseModel):
     order_id: int

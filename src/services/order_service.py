@@ -7,9 +7,9 @@ from src.models.users import User
 from src.schemas.orders import OrderCreateSchema, OrderResponseSchema
 from typing import List
 from src.utils.order_status import update_order_overall_status
-from src.services.product_service import ProductService
 from src.services.email_service import send_email
 from src.utils.email_templates import send_order_cancelled_email
+from src.services.cart_service import _serialize_cart, clear_cart, get_or_create_cart
 
 class OrderService:
     def __init__(self, db: Session):
@@ -36,36 +36,41 @@ class OrderService:
         if not address:
             raise HTTPException(status_code=404, detail="Address not found")
 
-        # Prepare order items and calculate total
-        total_amount = 0
+        # Get user's active cart with applied coupon
+        cart = get_or_create_cart(self.db, current_user.id)
+        if not cart or not cart.items:
+            raise HTTPException(status_code=400, detail="Cart is empty")
+
+        coupon = cart.coupon
+
+        # Compute totals with coupon
+        cart_out = _serialize_cart(self.db, cart, coupon=coupon)
+        discount = cart_out.discount
+        subtotal=cart_out.subtotal
+        total_amount = cart_out.total
+
+        # Prepare order items directly from cart
         order_items = []
-        for item in order_data.items:
+        for item in cart_out.items:
             product = self.db.query(Product).filter(Product.id == item.product_id).first()
             if not product:
                 raise HTTPException(status_code=404, detail=f"Product ID {item.product_id} not found")
-            if not product.is_active:
-                raise HTTPException(status_code=400, detail=f"Product ID {product.name} is inactive")
-            if product.is_deleted:
-                raise HTTPException(status_code=400, detail=f"Product ID {product.name} is deleted")
+            if not product.is_active or product.is_deleted:
+                raise HTTPException(status_code=400, detail=f"Product {product.name} is unavailable")
             if product.stock < item.quantity:
-                raise HTTPException(status_code=400, detail=f"Not enough stock for {product.name}")
-
-            unit_price = product.price
-            total_price = unit_price * item.quantity
-            total_amount += total_price
+                raise HTTPException(status_code=400, detail=f"Insufficient stock for {product.name}")
 
             order_items.append(
                 OrderItem(
                     product_id=item.product_id,
                     seller_id=product.seller_id,
                     quantity=item.quantity,
-                    unit_price=unit_price,
-                    total_price=total_price,
+                    unit_price=item.unit_price,
+                    total_price=item.line_total,
                 )
             )
 
-        # Create order with payment_status=FAILED initially
-        # Stock will only be deducted when payment succeeds (via webhook)
+        # Create order (mark payment_status=FAILED initially)
         order = Order(
             user_id=current_user.id,
             address_id=address.id,
@@ -75,16 +80,24 @@ class OrderService:
             payment_status=PaymentStatus.FAILED,
         )
         self.db.add(order)
-        self.db.flush()  # Get order.id
+        self.db.flush()  # to get order.id
 
-        # Add order items (DO NOT deduct stock here - will be deducted on payment success)
+        # Add order items
         for oi in order_items:
             oi.order_id = order.id
             self.db.add(oi)
 
+        # Commit and clear cart
         self.db.commit()
+        clear_cart(self.db, current_user.id)
+
         self.db.refresh(order)
-        return order
+        
+        response = OrderResponseSchema.model_validate(order, from_attributes=True)
+        response.discount = discount
+        response.subtotal = subtotal
+        response.coupon_code = coupon.coupon_code if coupon else None
+        return response
 
     async def cancel_order(self, order_id: int, current_user: User, background_tasks=BackgroundTasks):
         if current_user.role.value != "customer":
