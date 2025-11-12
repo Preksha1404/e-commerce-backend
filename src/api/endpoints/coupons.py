@@ -4,13 +4,12 @@
 # GET	--> /coupons/{coupon_id}	--> Get coupon details by ID (Admin/Seller)
 # PATCH	--> /coupons/{coupon_id}	--> Update coupon	(Admin/Seller)
 # DELETE--> /coupons/{coupon_id}	--> Delete or deactivate coupon	(Admin/Seller)
-# POST	--> /coupons/apply	        --> Apply coupon to cart (validate, calculate discount)	--> Customer
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from src.services.coupon_service import CouponService
-from src.schemas.coupons import CouponCreate, CouponUpdate, CouponResponse, ApplyCouponRequest, ApplyCouponResponse
+from src.schemas.coupons import CouponCreate, CouponUpdate, CouponResponse
 from src.core.database import get_db
 from src.utils.auth import get_current_active_user
 from src.models.users import User
@@ -63,12 +62,4 @@ def delete_existing_coupon(
     service = CouponService(db)
     service.delete_coupon(coupon_id, current_user)
     return {"detail": "Coupon deleted/deactivated successfully"}
-
-@router.post("/apply", response_model=ApplyCouponResponse)
-def apply_coupon_endpoint(
-    request: ApplyCouponRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
-):
-    service = CouponService(db)
-    return service.apply_coupon_to_cart(current_user, request.coupon_code)
+ 

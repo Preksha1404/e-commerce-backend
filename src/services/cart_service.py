@@ -1,18 +1,17 @@
 from sqlalchemy.orm import Session
+from fastapi import HTTPException
 from typing import Optional, List
-
+from datetime import datetime, timezone
 from src.models.orders import Cart, CartItem
 from src.models.products import Product, ProductImage
 from src.schemas.cart import CartOut, CartItemOut
 from src.models.coupons import Coupon
 
-def _compute_totals(db:Session, items: List[CartItemOut], coupon: Optional["Coupon"] = None) -> (float, float, float):
+def _compute_totals(db: Session, items: List[CartItemOut], coupon: Optional["Coupon"] = None) -> (float, float, float):
     subtotal = 0.0
 
     for item in items:
-        # Fetch product from DB
         product = db.query(Product).filter(Product.id == item.product_id).first()
-        
         if not product:
             continue
 
@@ -22,20 +21,25 @@ def _compute_totals(db:Session, items: List[CartItemOut], coupon: Optional["Coup
         if product.discount_price:
             price = max(price - product.discount_price, 0)
 
-        # Update line total
         item.line_total = price * item.quantity
         subtotal += item.line_total
 
     discount = 0.0
 
-    # Apply coupon discount if applicable
+    # Apply coupon only if applicable
     if coupon:
-        if not coupon.minimum_value or subtotal >= coupon.minimum_value:
-            discount_type = getattr(coupon.discount_type, "value", coupon.discount_type)
-            if discount_type == "flat":
-                discount = coupon.discount_value or 0
-            elif discount_type == "percentage":
-                discount = subtotal * ((coupon.discount_value or 0) / 100)
+        # If subtotal < minimum_value → coupon invalid
+        if coupon.minimum_value and subtotal < coupon.minimum_value:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Minimum cart value of ₹{coupon.minimum_value} required to apply this coupon."
+            )
+
+        discount_type = getattr(coupon.discount_type, "value", coupon.discount_type)
+        if discount_type == "flat":
+            discount = coupon.discount_value or 0
+        elif discount_type == "percentage":
+            discount = subtotal * ((coupon.discount_value or 0) / 100)
 
     total = max(0.0, subtotal - discount)
     return float(subtotal), float(discount), float(total)
@@ -92,7 +96,8 @@ def get_or_create_cart(db: Session, user_id: int) -> Cart:
 
 def get_cart(db: Session, user_id: int) -> CartOut:
     cart = get_or_create_cart(db, user_id)
-    return _serialize_cart(db, cart)
+    coupon = cart.coupon  # Automatically loaded due to relationship
+    return _serialize_cart(db, cart, coupon=coupon)
 
 
 def add_item(db: Session, user_id: int, product_id: int, quantity: int) -> CartOut:
@@ -160,10 +165,32 @@ def clear_cart(db: Session, user_id: int) -> CartOut:
 
 
 def apply_coupon(db: Session, user_id: int, code: str) -> CartOut:
-    # Placeholder: accept any non-empty code as demo; integrate real coupon validation later
     if not code:
-        raise ValueError("Coupon code required")
+        raise HTTPException(status_code=400, detail="Coupon code required")
+
     cart = get_or_create_cart(db, user_id)
-    return _serialize_cart(db, cart, coupon=code)
+    
+    coupon = db.query(Coupon).filter(Coupon.coupon_code == code).first()
 
+    if not coupon:
+        raise HTTPException(status_code=404, detail="Invalid coupon code")
 
+    now = datetime.now()
+    if not coupon.coupon_status:
+        raise HTTPException(status_code=400, detail="Coupon is inactive")
+    if coupon.expiry_date and coupon.expiry_date < now:
+        raise HTTPException(status_code=400, detail="Coupon has expired")
+    if coupon.used_count >= coupon.usage_limit:
+        raise HTTPException(status_code=400, detail="Coupon usage limit reached")
+
+    # Save applied coupon to cart
+    cart.coupon_id = coupon.id
+    db.commit()
+    db.refresh(cart)
+
+    # Update usage count
+    coupon.used_count += 1
+    db.commit()
+
+    # Return serialized cart with applied coupon
+    return _serialize_cart(db, cart, coupon=coupon)
