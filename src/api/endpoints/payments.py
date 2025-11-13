@@ -54,7 +54,6 @@ def create_payment_intent(
     service = PaymentService(db)
     result = service.create_payment_intent(
         order_id=payment_data.order_id,
-        amount=payment_data.amount,
         currency=payment_data.currency,
         metadata=payment_data.metadata
     )

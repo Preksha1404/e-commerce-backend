@@ -10,7 +10,6 @@ from src.core.stripe_config import (
     get_stripe_webhook_secret,
     get_stripe_currency
 )
-from src.schemas.payments import PaymentIntentCreate
 import logging
 import json
 
@@ -27,12 +26,12 @@ class PaymentService:
     def create_payment_intent(
         self,
         order_id: int,
-        amount: float,
         currency: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
         """
         Create a Stripe payment intent for an order.
+        Amount is automatically fetched from the order's total_amount.
         """
         # Verify order exists and is in valid state
         order = self.db.query(Order).filter(Order.id == order_id).first()
@@ -52,15 +51,18 @@ class PaymentService:
                 detail="Payment already exists for this order"
             )
 
-        # Validate amount matches order total
-        if abs(amount - order.total_amount) > 0.01:  # Allow small floating point differences
+        # Fetch amount from order's total_amount
+        payment_amount = order.total_amount
+        
+        # Validate order has a valid amount
+        if payment_amount <= 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Payment amount {amount} does not match order total {order.total_amount}"
+                detail="Order total amount must be greater than 0"
             )
 
         # Convert amount to cents (Stripe uses smallest currency unit)
-        amount_cents = int(amount * 100)
+        amount_cents = int(payment_amount * 100)
         currency = currency or self.default_currency
 
         # Prepare metadata
@@ -86,7 +88,7 @@ class PaymentService:
             payment = Payment(
                 order_id=order_id,
                 stripe_payment_intent_id=payment_intent.id,
-                amount=amount,
+                amount=payment_amount,
                 currency=currency,
                 status=PaymentStatus.PENDING,
                 payment_metadata=payment_metadata
@@ -98,7 +100,7 @@ class PaymentService:
             return {
                 "payment_intent_id": payment_intent.id,
                 "client_secret": payment_intent.client_secret,
-                "amount": amount,
+                "amount": payment_amount,
                 "currency": currency,
                 "status": payment_intent.status,
                 "order_id": order_id
