@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from typing import Optional, List
 from datetime import datetime
 from src.models.orders import Cart, CartItem
@@ -36,7 +36,10 @@ def _compute_totals(db: Session, items: List[CartItemOut], coupon: Optional["Cou
             applied_coupon_code = coupon.coupon_code
         else:
             # Coupon not applicable due to minimum value
-            applied_coupon_code = None
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Coupon '{coupon.coupon_code}' requires a minimum cart value of {coupon.minimum_value}. Current subtotal is {subtotal}."
+            )
 
     total = max(0.0, subtotal - discount)
     return float(subtotal), float(discount), float(total), applied_coupon_code

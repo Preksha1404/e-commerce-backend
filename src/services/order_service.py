@@ -166,7 +166,8 @@ class OrderService:
         orders = (
             self.db.query(Order)
             .join(OrderItem)
-            .filter(OrderItem.seller_id == current_user.id)
+            .filter(OrderItem.seller_id == current_user.id,
+                    Order.payment_status == "paid")
             .all()
         )
 
