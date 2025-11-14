@@ -1,8 +1,9 @@
-from fastapi import APIRouter, Depends, UploadFile, File, status, Form, Body
+from fastapi import APIRouter, Depends, UploadFile, File, status, Form, Body, Cookie
 from sqlalchemy.orm import Session
-from typing import List, Optional
+from typing import List, Optional, Union
 from src.core.database import get_db
 from src.models.users import User
+from src.models.products import Product
 from src.schemas.products import BulkUploadResponse, ProductResponse, AddStockRequest
 from src.utils.auth import get_current_active_user
 from src.services.product_service import ProductService
@@ -19,8 +20,73 @@ cloudinary.config(
 
 
 @router.get("/", response_model=List[ProductResponse])
-def list_products(db: Session = Depends(get_db)):
-    return ProductService(db, None).list_products()
+def list_products(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+    ):
+    return ProductService(db, current_user).list_products()
+
+@router.get("/approved/", response_model=List[ProductResponse])
+def list_approved_products(
+    db: Session = Depends(get_db),
+    ):
+    products = (
+            db.query(Product)
+            .filter(Product.is_active == True, Product.is_deleted == False)
+            .all()
+        )
+    return products
+
+@router.get("/category/{category_name}/", response_model=List[ProductResponse])
+def get_products_by_category_name(category_name: str, db: Session = Depends(get_db)):
+    return ProductService(db, None).get_products_by_category_name(category_name)
+
+
+def get_optional_user(
+    access_token: Optional[str] = Cookie(None, include_in_schema=False),
+    db: Session = Depends(get_db)
+) -> Optional[User]:
+    """Optional authentication - returns user if token is present, None otherwise"""
+    if not access_token:
+        return None
+    try:
+        from src.utils.functions import verify_token
+        token_data = verify_token(access_token)
+        user = db.query(User).filter(User.email == token_data.email).first()
+        if user and user.is_active:
+            return user
+    except:
+        pass
+    return None
+
+
+@router.get("/search/", response_model=List[ProductResponse])
+def search_products(
+    q: str,
+    status: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
+    """
+    Search products by name, description, or SKU.
+    - q: Search query string (required)
+    - status: Optional status filter (only for admins): 'pending', 'approved', 'rejected'
+    """
+    if not q or not q.strip():
+        return []
+    return ProductService(db, current_user).search_products(q.strip(), status)
+
+
+@router.get("/new-arrivals/", response_model=List[ProductResponse])
+def get_new_arrivals(
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_optional_user),
+):
+    """
+    Get the latest 2 products from each category.
+    Only returns approved and active products.
+    """
+    return ProductService(db, current_user).get_new_arrivals()
 
 
 @router.get("/sellers/{seller_id}/", response_model=List[ProductResponse])
@@ -61,7 +127,7 @@ async def update_product(
     sku: Optional[str] = Form(None),
     category_id: Optional[int] = Form(None),
     is_featured: Optional[bool] = Form(None),
-    images: Optional[List[UploadFile]] = File(None),
+    images: Optional[Union[List[UploadFile], List[str]]] = File(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):

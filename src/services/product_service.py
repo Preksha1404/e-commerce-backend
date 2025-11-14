@@ -1,9 +1,10 @@
-from sqlalchemy.orm import Session
-from fastapi import HTTPException, status, UploadFile, Response
-from typing import List, Optional
-import cloudinary
-import cloudinary.uploader
+from sqlalchemy.orm import Session # type: ignore
+from fastapi import HTTPException, status, UploadFile, Response # type: ignore
+from typing import List, Optional, Union
+import cloudinary # type: ignore
+import cloudinary.uploader # type: ignore
 from src.models.products import Product, ProductImage
+from src.models.products import Category
 from src.schemas.products import AddStockRequest, BulkUploadResponse, BulkUploadRow
 from src.utils.bulk_upload import process_upload_file, validate_row, save_products_batch, generate_bulk_upload_template
 from src.utils.functions import generate_slug, generate_simple_sku
@@ -14,7 +15,18 @@ class ProductService:
         self.current_user = current_user
 
     def list_products(self):
-        products = self.db.query(Product).all()
+        # Only admin can view all products
+        if not self.current_user or self.current_user.role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only admins can view all products"
+            )
+
+        products = (
+            self.db.query(Product)
+            .filter(Product.is_deleted == False)
+            .all()
+        )
         return products
 
     def get_seller_products(self, seller_id: int):
@@ -26,7 +38,7 @@ class ProductService:
 
         products = (
             self.db.query(Product)
-            .filter(Product.seller_id == seller_id)
+            .filter(Product.seller_id == seller_id, Product.is_deleted == False)
             .order_by(Product.created_at.desc())
             .all()
         )
@@ -99,10 +111,29 @@ class ProductService:
         return db_product
 
     def get_product(self, product_id: int):
-        db_product = self.db.query(Product).filter(Product.id == product_id).first()
+        db_product = (
+            self.db.query(Product)
+            .filter(Product.id == product_id, Product.is_deleted == False)
+            .first()
+        )
         if not db_product:
             raise HTTPException(status_code=404, detail="Product not found")
         return db_product
+
+    def get_products_by_category_name(self, category_name: str):
+        category = self.db.query(Category).filter(Category.name.ilike(category_name)).first()
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+
+        products = (
+            self.db.query(Product)
+            .filter(Product.category_id == category.id, Product.is_deleted == False)
+            .all()
+        )
+        if not products:
+            raise HTTPException(status_code=404, detail="No products found for this category")
+
+        return products
 
     async def update_product(
         self,
@@ -115,7 +146,7 @@ class ProductService:
         sku: Optional[str],
         category_id: Optional[int],
         is_featured: Optional[bool],
-        images: Optional[List[UploadFile]],
+        images: Optional[Union[List[UploadFile], List[str]]],
     ):
         if self.current_user.role != "seller":
             raise HTTPException(status_code=403, detail="Only sellers can update products")
@@ -125,11 +156,11 @@ class ProductService:
             .filter(Product.id == product_id, Product.seller_id == self.current_user.id)
             .first()
         )
-
+        
         if not db_product:
             raise HTTPException(status_code=404, detail="Product not found")
 
-        # Clean helper — convert "", "null", "None", "undefined" → None
+        # Helper to clean invalid strings
         def clean_value(value):
             if value is None:
                 return None
@@ -143,16 +174,15 @@ class ProductService:
         name = clean_value(name)
         description = clean_value(description)
         sku = clean_value(sku)
-        is_featured = clean_value(is_featured)
 
-        # Handle numeric safely
+        # Handle numerics safely
         try:
             price = float(price) if clean_value(price) is not None else None
         except (ValueError, TypeError):
             price = None
 
         try:
-            discount_price = str(discount_price) if clean_value(discount_price) is not None else None
+            discount_price = float(discount_price) if clean_value(discount_price) is not None else None
         except (ValueError, TypeError):
             discount_price = None
 
@@ -166,15 +196,11 @@ class ProductService:
         except (ValueError, TypeError):
             category_id = None
 
-        # Clean valid images
-        valid_images = []
-        if images:
-            for img in images:
-                if isinstance(img, UploadFile) and img.filename.strip():
-                    valid_images.append(img)
-        images = valid_images if valid_images else None
+        # Keep boolean values as-is
+        if isinstance(is_featured, str):
+            is_featured = is_featured.lower() == "true"
 
-        # Update only valid non-empty fields
+        # Update non-empty fields
         form_fields = {
             "name": name,
             "description": description,
@@ -185,17 +211,20 @@ class ProductService:
             "category_id": category_id,
             "is_featured": is_featured,
         }
-
         for key, value in form_fields.items():
             if value is not None:
                 setattr(db_product, key, value)
 
         # Handle image uploads
         if images:
+            # Delete existing images
             self.db.query(ProductImage).filter(ProductImage.product_id == product_id).delete()
+            self.db.flush()  # ensures delete is applied before inserting new ones
+
             for index, image in enumerate(images, start=1):
                 if not image.content_type.startswith("image/"):
                     raise HTTPException(status_code=400, detail=f"Invalid file type: {image.filename}")
+
                 try:
                     upload_result = cloudinary.uploader.upload(
                         image.file,
@@ -204,7 +233,12 @@ class ProductService:
                     )
                     image_url = upload_result.get("secure_url")
                     if image_url:
-                        self.db.add(ProductImage(product_id=db_product.id, url=image_url, position=index))
+                        new_image = ProductImage(
+                            product_id=db_product.id,
+                            url=image_url,
+                            position=index
+                        )
+                        self.db.add(new_image)
                 except Exception as e:
                     raise HTTPException(status_code=500, detail=f"Image upload failed: {str(e)}")
 
@@ -212,24 +246,42 @@ class ProductService:
         db_product.status = "pending"
         db_product.is_active = False
 
+        # Commit once
         self.db.commit()
         self.db.refresh(db_product)
+
+        db_product.images = (
+        self.db.query(ProductImage)
+        .filter(ProductImage.product_id == db_product.id)
+        .order_by(ProductImage.position)
+        .all()
+        )
+
         return db_product
 
     def delete_product(self, product_id: int):
         db_product = self.db.query(Product).filter(Product.id == product_id).first()
 
         if not db_product:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Product with ID {product_id} not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Product with ID {product_id} not found"
+            )
 
         if db_product.seller_id != self.current_user.id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized to delete this product")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to delete this product"
+            )
 
-        self.db.query(ProductImage).filter(ProductImage.product_id == product_id).delete()
-        self.db.delete(db_product)
+        # Soft delete instead of actual delete
+        db_product.is_deleted = True
+        db_product.is_active = False  # also deactivate product
+
         self.db.commit()
+        self.db.refresh(db_product)
 
-        return {"message": f"Product '{db_product.name}' deleted successfully"}
+        return {"message": f"Product '{db_product.name}' marked as deleted successfully"}
 
     def add_product_stock(self, product_id: int, stock_data: AddStockRequest):
         if self.current_user.role != "seller":
@@ -330,3 +382,82 @@ class ProductService:
         except Exception as e:
             msg = str(e).splitlines()[0] if str(e) else "Bulk upload failed"
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
+
+    def search_products(self, query: str, status_filter: Optional[str] = None):
+        """
+        Search products by name, description, or SKU.
+        Only returns approved and active products for customers.
+        Admins can filter by status.
+        """
+        # Base query
+        base_query = (
+            self.db.query(Product)
+            .filter(Product.is_deleted == False)
+        )
+        
+        # If user is admin and status filter is provided, use it
+        is_admin = self.current_user and self.current_user.role == "admin"
+        if is_admin and status_filter:
+            base_query = base_query.filter(Product.status == status_filter)
+        # If user is not admin, only show approved and active products
+        elif not is_admin:
+            base_query = base_query.filter(
+                Product.status == "approved",
+                Product.is_active == True
+            )
+        # If admin but no status filter, show all non-deleted products
+        
+        # Search in name, description, or SKU (case-insensitive)
+        search_term = f"%{query}%"
+        products = (
+            base_query.filter(
+                (Product.name.ilike(search_term)) |
+                (Product.description.ilike(search_term)) |
+                (Product.sku.ilike(search_term))
+            )
+            .order_by(Product.created_at.desc())
+            .all()
+        )
+        
+        return products
+
+    def get_new_arrivals(self):
+        """
+        Get the latest 2 products from each category.
+        Only returns approved and active products.
+        """
+        # Get all active categories
+        categories = (
+            self.db.query(Category)
+            .filter(Category.is_active == True)
+            .all()
+        )
+        
+        new_arrivals = []
+        
+        for category in categories:
+            # Base query for products in this category
+            base_query = (
+                self.db.query(Product)
+                .filter(
+                    Product.category_id == category.id,
+                    Product.is_deleted == False,
+                    Product.status == "approved",
+                    Product.is_active == True
+                )
+            )
+            
+            # Get latest 2 products from this category
+            products = (
+                base_query
+                .order_by(Product.created_at.desc())
+                .limit(2)
+                .all()
+            )
+            
+            new_arrivals.extend(products)
+        
+        # Sort all products by created_at descending
+        new_arrivals.sort(key=lambda x: x.created_at, reverse=True)
+        
+        return new_arrivals

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from io import BytesIO
@@ -8,25 +8,19 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 import os
-import requests
-import cloudinary
-from cloudinary.utils import cloudinary_url
-from jwt.exceptions import ExpiredSignatureError
 
-from src.models.orders import Order, OrderItem, Payment
+# Models
+from src.models.orders import Order, OrderItem
+from src.models.payment import Payment  # Corrected import
 from src.models.products import Product
 from src.models.users import User
+
+# Core & Utilities
 from src.core.database import get_db
-from src.utils.auth import get_current_active_user, verify_token
+from src.utils.auth import get_current_active_user
+
 
 router = APIRouter(prefix="/invoice", tags=["Invoice"])
-
-# ----------------- Cloudinary Configuration -----------------
-cloudinary.config(
-    cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
-    api_key=os.getenv("CLOUDINARY_API_KEY"),
-    api_secret=os.getenv("CLOUDINARY_API_SECRET")
-)
 
 LOGO_PATH = "assets/logo.png"
 
@@ -93,24 +87,6 @@ def get_invoice_data(order_id: int, db: Session):
         },
     }
 
-# ----------------- Cloudinary ₹ Symbol Helper -----------------
-def get_cloudinary_rupee_image(amount: float):
-    """Generate Cloudinary URL with ₹ overlay"""
-    formatted = f"₹{amount:,.2f}"
-    url, _ = cloudinary_url(
-        "transparent_placeholder.png",  # Must exist in your Cloudinary
-        overlay={
-            "font_family": "Roboto",
-            "font_size": 24,
-            "text": formatted
-        },
-        width=200,
-        height=40,
-        crop="fit",
-        color="black"
-    )
-    return url
-
 # ----------------- PDF Generator -----------------
 def generate_pdf(invoice_data, file_obj):
     doc = SimpleDocTemplate(
@@ -134,18 +110,10 @@ def generate_pdf(invoice_data, file_obj):
             amount_value = float(amount)
         except (ValueError, TypeError):
             amount_value = 0.0
-
-        cloudinary_img_url = get_cloudinary_rupee_image(amount_value)
-        try:
-            resp = requests.get(cloudinary_img_url, timeout=5)
-            resp.raise_for_status()
-            img_buffer = BytesIO(resp.content)
-            return RLImage(img_buffer, width=50, height=15)
-        except Exception:
-            return Paragraph(f"₹{amount_value:,.2f}", styles["Normal"])
+        return Paragraph(f"₹{amount_value:,.2f}", styles["Normal"])
 
     # ----------------- Header -----------------
-    logo = RLImage(LOGO_PATH, width=1.0 * inch, height=1.0 * inch) if os.path.exists(LOGO_PATH) else Paragraph("<b>Cartify</b>", styles["CartifyTitle"])
+    logo = RLImage(LOGO_PATH, width=1.0*inch, height=1.0*inch) if os.path.exists(LOGO_PATH) else Paragraph("<b>Cartify</b>", styles["CartifyTitle"])
     header = Table([[logo, "", Paragraph("INVOICE", styles["RightTitle"])]], colWidths=[80, 350, 100])
     header.setStyle(TableStyle([
         ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
@@ -184,7 +152,7 @@ def generate_pdf(invoice_data, file_obj):
             currency_cell(item["subtotal"])
         ])
 
-    PAGE_WIDTH, PAGE_HEIGHT = A4
+    PAGE_WIDTH, _ = A4
     usable_width = PAGE_WIDTH - 80
     col_widths = [0.06 * usable_width, 0.35 * usable_width, 0.19 * usable_width, 0.08 * usable_width, 0.16 * usable_width, 0.16 * usable_width]
     item_table = Table(table_data, colWidths=col_widths)
@@ -238,24 +206,7 @@ def generate_pdf(invoice_data, file_obj):
 
 # ----------------- FastAPI Endpoint -----------------
 @router.get("/{order_id}", response_class=StreamingResponse)
-def generate_invoice(request: Request, order_id: int, db: Session = Depends(get_db)):
-    """
-    Generate invoice PDF. Handles expired JWT gracefully.
-    """
-    # ----------------- Get token from Authorization header -----------------
-    token = request.headers.get("Authorization")
-    if not token or not token.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Authorization token missing")
-    token = token.split(" ")[1]
-
-    # ----------------- Verify token -----------------
-    try:
-        current_user = verify_token(token)
-    except ExpiredSignatureError:
-        raise HTTPException(status_code=401, detail="Token expired")
-    except Exception:
-        raise HTTPException(status_code=401, detail="Invalid token")
-
+def generate_invoice(order_id: int, current_user: User = Depends(get_current_active_user), db: Session = Depends(get_db)):
     invoice_data = get_invoice_data(order_id, db)
     if not invoice_data:
         raise HTTPException(status_code=404, detail="Invoice not found")

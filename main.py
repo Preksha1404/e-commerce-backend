@@ -1,9 +1,11 @@
-from decimal import Decimal
-from typing import List, Optional
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI
 from src.core.database import engine, Base
-from src.api.endpoints import invoice, users, auth, sellers, products, profile, categories,review
-from src.models import *  # ✅ all models registered here
+from src.api.endpoints import invoice, users, auth, sellers, products, profile, categories,review,payments
+from src.models.payment import Payment, PaymentStatus
+from src.models.orders import Order 
+from src.api.endpoints import payments
+from src.api.endpoints import payments
+
 from src.core.seed import seed_admin
 from contextlib import asynccontextmanager 
 from fastapi.middleware.cors import CORSMiddleware
@@ -59,4 +61,4 @@ app.include_router(products.router)
 app.include_router(categories.router)
 app.include_router(invoice.router)
 app.include_router(review.router)
-
+app.include_router(payments.router)

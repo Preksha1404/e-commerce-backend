@@ -1,6 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import StreamingResponse
-from sqlalchemy.orm import Session
+from fastapi import APIRouter, Depends, HTTPException # type: ignore
+from fastapi.responses import StreamingResponse # type: ignore
+from sqlalchemy.orm import Session # type: ignore
 from io import BytesIO
 
 from src.core.database import get_db

@@ -3,6 +3,7 @@ from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, Foreig
 from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from src.core.database import Base
+from src.models.ratings import Rating   # <-- important import
 
 
 class Category(Base):
@@ -19,7 +20,6 @@ class Category(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
     image_url = Column(String, nullable=True)
 
-     
     products = relationship("Product", back_populates="category")
 
 
@@ -34,21 +34,36 @@ class Product(Base):
     stock = Column(Integer, default=0)
     slug = Column(String, unique=True, nullable=False)
     sku = Column(String, unique=True, nullable=True)
+
     category_id = Column(Integer, ForeignKey('categories.id'), nullable=False)
     seller_id = Column(Integer, ForeignKey('users.id'), nullable=False)
+
     status = Column(String(50), default="pending", nullable=True)
     is_active = Column(Boolean, default=True)
     is_featured = Column(Boolean, default=False)
+    is_deleted = Column(Boolean, default=False)
+
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
-    
+    # -------------------- RELATIONSHIPS --------------------
     category = relationship("Category", back_populates="products")
-    seller = relationship("User", back_populates="products")   # ← FIXED import name
+    seller = relationship("User", back_populates="products")
     images = relationship("ProductImage", back_populates="product")
-    order_items = relationship("OrderItem", back_populates="product")  # ← ✅ added
+    order_items = relationship("OrderItem", back_populates="product")
     reviews = relationship("Review", back_populates="product")
-    
+
+    # ⭐ Product Ratings System ⭐
+    ratings = relationship(
+        "Rating",
+        back_populates="product",
+        cascade="all, delete-orphan",
+        lazy="selectin"
+    )
+
+    average_rating = Column(Float, default=0.0)
+
+
 class ProductImage(Base):
     __tablename__ = "product_images"
 
@@ -58,6 +73,4 @@ class ProductImage(Base):
     position = Column(Integer, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
-     
     product = relationship("Product", back_populates="images")
-   

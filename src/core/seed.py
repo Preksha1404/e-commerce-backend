@@ -1,5 +1,6 @@
 from src.core.database import SessionLocal
 from src.models.users import User
+from src.models.products import Category
 from src.utils.functions import get_pwd_hash
 from fastapi import HTTPException
 import os
@@ -25,5 +26,22 @@ def seed_admin():
             db.commit()
         else:
             HTTPException(status_code=400, detail="Admin user already exists")
+    finally:
+        db.close()
+
+def seed_default_category():
+    db = SessionLocal()
+    try:
+        # Check if 'Default' category already exists
+        existing_category = db.query(Category).filter(Category.name == "Default").first()
+        if not existing_category:
+            default_category = Category(
+                name="Default",
+                description="Default category for uncategorized products"
+            )
+            db.add(default_category)
+            db.commit()
+        else:
+            HTTPException(status_code=400, detail="Default category already exists") 
     finally:
         db.close()

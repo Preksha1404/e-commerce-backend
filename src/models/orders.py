@@ -1,12 +1,13 @@
-from sqlalchemy import (
+from sqlalchemy import ( # type: ignore
     Column, Integer, String, Float, Boolean, DateTime,
     ForeignKey, Enum
 )
-from sqlalchemy.sql import func
-from sqlalchemy.orm import relationship
+from sqlalchemy.sql import func # type: ignore
+from sqlalchemy.orm import relationship # type: ignore
 from src.core.database import Base
 import enum
-
+ 
+from src.models.payment import Payment
 
 # ===========================
 # ENUMS
@@ -86,7 +87,11 @@ class Order(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
-    payments = relationship("Payment", back_populates="order", cascade="all, delete-orphan")
+    # In Payment model
+ 
+    # In Order model
+    payments = relationship("Payment", back_populates="order", uselist=False)
+
 
     user = relationship("User", back_populates="orders")
     address = relationship("Address", back_populates="orders")
@@ -113,18 +118,5 @@ class OrderItem(Base):
     seller = relationship("User", backref="order_items")
 
 
-# ===========================
-# PAYMENT MODEL
-# ===========================
 
-class Payment(Base):
-    __tablename__ = "payments"
-
-    id = Column(Integer, primary_key=True, index=True)
-    order_id = Column(Integer, ForeignKey("orders.id", ondelete="CASCADE"))
-
-    status = Column(Enum(PaymentStatus), nullable=False)
-    payment_date = Column(DateTime)
-    transaction_reference = Column(String)
-
-    order = relationship("Order", back_populates="payments")
+ 

@@ -13,7 +13,7 @@ class UserRole(str, enum.Enum):
 
 class User(Base):
     __tablename__ = "users"
-
+    __table_args__ = {"extend_existing": True} 
     id = Column(Integer, primary_key=True, index=True)
     email = Column(String, unique=True, index=True, nullable=False)
     hashed_password = Column(String, nullable=False)
@@ -31,9 +31,14 @@ class User(Base):
     reset_token_expires = Column(DateTime, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
-    # ✅ Relationships
+ 
     products = relationship("src.models.products.Product", back_populates="seller", lazy="dynamic")
     orders = relationship("src.models.orders.Order", back_populates="user", cascade="all, delete-orphan")
     carts = relationship("Cart", back_populates="user", cascade="all, delete-orphan")
     addresses = relationship("src.models.addresses.Address", back_populates="user", cascade="all, delete-orphan")
+    
+     
+    coupons = relationship("Coupon", back_populates="user", cascade="all, delete-orphan")
+
+ 
+

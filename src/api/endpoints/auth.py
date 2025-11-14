@@ -1,13 +1,13 @@
-from fastapi import APIRouter, Depends, Response, Cookie, BackgroundTasks, HTTPException, status
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-from dotenv import load_dotenv
+from fastapi import APIRouter, Depends, Response, Cookie, BackgroundTasks, HTTPException, status # type: ignore
+from fastapi.responses import JSONResponse # type: ignore
+from sqlalchemy.orm import Session # type: ignore
+from dotenv import load_dotenv # type: ignore
 import os
 
 from src.core.database import SessionLocal
 from src.models.users import User
 from src.schemas.users import (
-    UserLogin,
+    UserLogin, 
     UserResponse,
     ChangePasswordRequest,
     ForgotPasswordRequest,

@@ -1,6 +1,6 @@
-from sqlalchemy.orm import Session
-from fastapi import HTTPException, UploadFile, status, BackgroundTasks
-from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session # type: ignore
+from fastapi import HTTPException, UploadFile, status, BackgroundTasks # type: ignore
+from fastapi.responses import JSONResponse # type: ignore
 from typing import List, Optional
 import os
 from src.utils.email_templates import seller_welcome_template, seller_verification_template
@@ -10,7 +10,7 @@ from src.schemas.users import SellerCreate, SellerUpdate
 from src.utils.functions import get_pwd_hash
 from src.utils.email import send_seller_block_status_email,send_seller_verification_email
 from src.models.products import Product
-from src.schemas.products import ProductCreate
+from src.schemas.products import ProductCreate 
 
 # ---------------- SELLER ACCOUNT MANAGEMENT ----------------
 class SellerService:
@@ -56,7 +56,7 @@ class SellerService:
 
         # Send email using generic function
         await send_email(
-            background_tasks,
+            background_tasks, # type: ignore
             to_email=new_seller.email,
             subject=subject,
             html_content=html_content

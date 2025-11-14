@@ -1,11 +1,12 @@
-from src.models.users import User, UserRole
-from src.models.products import Product, Category
-from src.models.orders import Cart, CartItem, Order, OrderItem
-from src.models.addresses import Address
-# models/__init__.py
-
- 
+from .users import User, UserRole
+from .products import Product, Category
+from .orders import Order, OrderItem, Cart, CartItem
+from .payment import Payment, PaymentStatus
 from .review import Review
-from .products import Product  # must come after Review!
+from .addresses import Address
+from .coupons import Coupon
 
-__all__ = ['User', 'UserRole', 'Product', 'Category', 'Cart', 'CartItem', 'Order', 'OrderItem', 'Address']
+__all__ = [
+    'User', 'UserRole', 'Product', 'Category', 'Cart', 'CartItem',
+    'Order', 'OrderItem', 'Address', 'Review', 'Payment', 'PaymentStatus', 'Coupon'
+]

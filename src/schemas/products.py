@@ -80,6 +80,8 @@ class ProductResponse(BaseModel):
     reviews: List[ReviewResponse] = Field(default_factory=list)
     created_at: Optional[datetime] = None
     updated_at: Optional[datetime] = None
+    average_rating: float
+    rating_count: int
 
     model_config = {"from_attributes": True}
 
