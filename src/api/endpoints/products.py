@@ -1,10 +1,10 @@
-from fastapi import APIRouter, Depends, UploadFile, File, status, Form, Body, Cookie
+from fastapi import APIRouter, Depends, UploadFile, File, status, Form, Body, Cookie, HTTPException
 from sqlalchemy.orm import Session
 from typing import List, Optional, Union
 from src.core.database import get_db
 from src.models.users import User
 from src.models.products import Product
-from src.schemas.products import BulkUploadResponse, ProductResponse, AddStockRequest
+from src.schemas.products import BulkUploadResponse, ProductResponse, AddStockRequest, QARequest
 from src.utils.auth import get_current_active_user
 from src.services.product_service import ProductService
 import cloudinary
@@ -157,3 +157,45 @@ def download_bulk_upload_template():
 @router.post("/bulk-upload", response_model=BulkUploadResponse)
 async def bulk_upload_products(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
     return await ProductService(db, current_user).bulk_upload_products(file)
+
+
+# ---------------- LLM-Powered Endpoints ----------------
+
+@router.post("/{product_id}/summarize-reviews", response_model=dict)
+def summarize_reviews(product_id: int, db: Session = Depends(get_db)):
+    """
+    Summarize reviews for a specific product using Gemini AI.
+    """
+    from src.services.llm_service import LLMService
+    from src.models.review import Review
+
+    product = db.query(Product).filter(Product.id == product_id, Product.is_deleted == False).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    reviews = db.query(Review).filter(Review.product_id == product_id).all()
+
+    llm_service = LLMService()
+    summary = llm_service.summarize_reviews(product, reviews)
+
+    return {"summary": summary}
+
+
+@router.post("/{product_id}/qa", response_model=dict)
+def qa_chatbot(product_id: int, qa_request: QARequest, db: Session = Depends(get_db)):
+    """
+    Answer questions about a product using Gemini AI, based on product details and reviews.
+    """
+    from src.services.llm_service import LLMService
+    from src.models.review import Review
+
+    product = db.query(Product).filter(Product.id == product_id, Product.is_deleted == False).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+
+    reviews = db.query(Review).filter(Review.product_id == product_id).all()
+
+    llm_service = LLMService()
+    answer = llm_service.answer_question(product, reviews, qa_request.question)
+
+    return {"answer": answer}
