@@ -15,5 +15,5 @@ def rate_product(data: RatingCreate, db: Session = Depends(get_db)):
     if not product:
         raise HTTPException(status_code=404, detail="Product not found")
 
-    
+      
     return add_rating(db, data)

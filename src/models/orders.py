@@ -35,20 +35,22 @@ class OrderItemStatus(str, enum.Enum):
 # ===========================
 # CART MODELS
 # ===========================
-
 class Cart(Base):
     __tablename__ = "carts"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     is_active = Column(Boolean, default=True)
-
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     coupon_id = Column(Integer, ForeignKey("coupons.id"), nullable=True)
 
+    # Link CartItems properly
     items = relationship("CartItem", back_populates="cart", cascade="all, delete-orphan")
-    user = relationship("src.models.users.User", backref="carts")
+    
+    # Avoid backref conflict by using back_populates
+    user = relationship("src.models.users.User", back_populates="carts")
     coupon = relationship("Coupon", backref="carts", lazy="joined")
 
 
@@ -56,7 +58,7 @@ class CartItem(Base):
     __tablename__ = "cart_items"
 
     id = Column(Integer, primary_key=True, index=True)
-    cart_id = Column(Integer, ForeignKey("carts.id"), nullable=False)
+    cart_id = Column(Integer, ForeignKey("carts.id"), nullable=False)  # <- Must have this!
     product_id = Column(Integer, ForeignKey("products.id"), nullable=False)
 
     quantity = Column(Integer, default=1)
@@ -64,6 +66,7 @@ class CartItem(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
+    # Link back to Cart
     cart = relationship("Cart", back_populates="items")
     product = relationship("Product")
 
@@ -121,4 +124,3 @@ class OrderItem(Base):
 
 
 
- 

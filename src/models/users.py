@@ -34,11 +34,9 @@ class User(Base):
  
     products = relationship("src.models.products.Product", back_populates="seller", lazy="dynamic")
     orders = relationship("src.models.orders.Order", back_populates="user", cascade="all, delete-orphan")
-    carts = relationship("Cart", back_populates="user", cascade="all, delete-orphan")
+    carts = relationship("Cart", back_populates="user")
     addresses = relationship("src.models.addresses.Address", back_populates="user", cascade="all, delete-orphan")
-    
-     
     coupons = relationship("Coupon", back_populates="user", cascade="all, delete-orphan")
-
+    carts = relationship("Cart", back_populates="user")
  
 

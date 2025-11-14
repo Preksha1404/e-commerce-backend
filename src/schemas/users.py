@@ -11,7 +11,7 @@ class UserRole(str, Enum):
     SELLER = "seller"
     CUSTOMER = "customer"
 
-# ----------------------------
+# ----------------------------  
 # Input/Create Models
 # ----------------------------
 class UserCreate(BaseModel):
@@ -45,7 +45,7 @@ class User(BaseModel):
     password: str
     full_name: str
     profile_picture: Optional[str] = None
-    phone: PhoneNumber
+    phone:PhoneNumber
 
 # ----------------------------
 # Response Models
