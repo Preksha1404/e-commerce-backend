@@ -14,6 +14,8 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 load_dotenv()
 
+ENV = os.getenv("ENV", "local")
+IS_PROD = ENV == "production"
 SECRET_KEY=os.getenv("SECRET_KEY")
 ALGORITHM=os.getenv("ALGORITHM")
 
@@ -33,12 +35,12 @@ def login(credentials: UserLogin, response: Response, db: Session = Depends(get_
         "message": "Login successful"
     }
 
-    response = JSONResponse(content=content)
+    res = JSONResponse(content=content)
 
-    response.set_cookie("access_token", access, httponly=True, secure=True, samesite="None")
-    response.set_cookie("refresh_token", refresh, httponly=True, secure=True, samesite="None")
+    res.set_cookie("access_token", access, httponly=True, secure=IS_PROD, samesite="None" if IS_PROD else "Lax", max_age= 24 * 60 * 60)
+    res.set_cookie("refresh_token", refresh, httponly=True, secure=IS_PROD, samesite="None" if IS_PROD else "Lax", max_age= 7 * 24 * 60 * 60)
 
-    return response
+    return res
 
 @router.get("/me", response_model=UserResponse)
 def get_profile(current_user: User = Depends(get_current_active_user)):

@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status, BackgroundTasks
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from src.models.orders import Order, OrderItem, OrderStatus, PaymentStatus
 from src.models.products import Product
 from src.models.addresses import Address
@@ -163,30 +163,42 @@ class OrderService:
         if current_user.role.value != "seller":
             raise HTTPException(status_code=403, detail="Not authorized")
 
+        # Eager-load items + product
         orders = (
             self.db.query(Order)
+            .options(
+                selectinload(Order.items).selectinload(OrderItem.product)
+            )
             .join(OrderItem)
             .filter(OrderItem.seller_id == current_user.id,
                     Order.payment_status == "paid")
             .all()
         )
 
+        if not orders:
+            return {
+                "message": "No orders found for this seller",
+                "orders": []
+            }
+
         seller_orders = []
         for order in orders:
-            seller_items = []
-            for item in order.items:
-                if item.seller_id == current_user.id:
-                    # Fetch minimal product info
-                    product = self.db.query(Product).filter(Product.id == item.product_id).first()
-                    seller_items.append({
-                        "id": item.id,
-                        "product": {"name": product.name, "sku": product.sku},
-                        "seller_id": item.seller_id,
-                        "quantity": item.quantity,
-                        "unit_price": item.unit_price,
-                        "total_price": item.total_price,
-                        "status": item.status
-                    })
+            seller_items = [
+                {
+                    "id": item.id,
+                    "product": {
+                        "name": item.product.name,
+                        "sku": item.product.sku
+                    },
+                    "seller_id": item.seller_id,
+                    "quantity": item.quantity,
+                    "unit_price": item.unit_price,
+                    "total_price": item.total_price,
+                    "status": item.status
+                }
+                for item in order.items
+                if item.seller_id == current_user.id
+            ]
 
             seller_orders.append({
                 "id": order.id,
@@ -198,36 +210,49 @@ class OrderService:
                 "address": order.address,
                 "items": seller_items
             })
+
         return seller_orders
-    
+
+
     def get_seller_order_details(self, order_id: int, current_user: User) -> dict:
         if current_user.role.value != "seller":
             raise HTTPException(status_code=403, detail="Not authorized")
 
-        order = self.db.query(Order).filter(Order.id == order_id).first()
+        # Eager-load items + product
+        order = (
+            self.db.query(Order)
+            .options(
+                selectinload(Order.items).selectinload(OrderItem.product)
+            )
+            .filter(Order.id == order_id)
+            .first()
+        )
+
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
 
-        seller_items = []
-        for item in order.items:
-            if item.seller_id == current_user.id:
-                # Fetch minimal product info
-                product = self.db.query(Product).filter(Product.id == item.product_id).first()
-                seller_items.append({
-                    "id": item.id,
-                    "product": {
-                        "name": product.name,
-                        "sku": product.sku
-                    },
-                    "seller_id": item.seller_id,
-                    "quantity": item.quantity,
-                    "unit_price": item.unit_price,
-                    "total_price": item.total_price,
-                    "status": item.status
-                })
+        seller_items = [
+            {
+                "id": item.id,
+                "product": {
+                    "name": item.product.name,
+                    "sku": item.product.sku
+                },
+                "seller_id": item.seller_id,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "total_price": item.total_price,
+                "status": item.status
+            }
+            for item in order.items
+            if item.seller_id == current_user.id
+        ]
 
         if not seller_items:
-            raise HTTPException(status_code=403, detail="This order does not contain your products")
+            raise HTTPException(
+                status_code=403, 
+                detail="This order does not contain your products"
+            )
 
         return {
             "id": order.id,
@@ -244,23 +269,29 @@ class OrderService:
         if current_user.role.value != "seller":
             raise HTTPException(status_code=403, detail="Only sellers can update item status")
 
-        order_item = self.db.query(OrderItem).filter(
-            OrderItem.id == item_id,
-            OrderItem.order_id == order_id,
-            OrderItem.seller_id == current_user.id,
-        ).first()
+        # Include product load
+        order_item = (
+            self.db.query(OrderItem)
+            .options(selectinload(OrderItem.product))
+            .filter(
+                OrderItem.id == item_id,
+                OrderItem.order_id == order_id,
+                OrderItem.seller_id == current_user.id
+            )
+            .first()
+        )
 
         if not order_item:
             raise HTTPException(status_code=404, detail="Item not found for this seller in this order")
 
-        # Restrict invalid transitions
+        # Restricted transitions
         if order_item.status in ["shipped", "delivered"] and new_status == "pending":
-            raise HTTPException(status_code=400, detail="Cannot change status from shipped/delivered to pending")
+            raise HTTPException(status_code=400, detail="Cannot move shipped/delivered to pending")
 
         if order_item.status == "delivered" and new_status == "shipped":
-            raise HTTPException(status_code=400, detail="Cannot change status from delivered to shipped")
+            raise HTTPException(status_code=400, detail="Cannot move delivered to shipped")
 
-        # Update valid status
+        # Update status
         order_item.status = new_status
         self.db.commit()
 
