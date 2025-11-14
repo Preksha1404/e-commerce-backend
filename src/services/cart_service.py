@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from typing import Optional, List
-from datetime import datetime, timezone
+from datetime import datetime
 from src.models.orders import Cart, CartItem
 from src.models.products import Product, ProductImage
 from src.schemas.cart import CartOut, CartItemOut
@@ -16,8 +16,6 @@ def _compute_totals(db: Session, items: List[CartItemOut], coupon: Optional["Cou
             continue
 
         price = product.price
-
-        # Apply per-product discount (flat amount)
         if product.discount_price:
             price = max(price - product.discount_price, 0)
 
@@ -25,24 +23,26 @@ def _compute_totals(db: Session, items: List[CartItemOut], coupon: Optional["Cou
         subtotal += item.line_total
 
     discount = 0.0
+    applied_coupon_code = None
 
-    # Apply coupon only if applicable
     if coupon:
-        # If subtotal < minimum_value → coupon invalid
-        if coupon.minimum_value and subtotal < coupon.minimum_value:
+        # Apply coupon only if subtotal >= minimum_value
+        if not coupon.minimum_value or subtotal >= coupon.minimum_value:
+            discount_type = getattr(coupon.discount_type, "value", coupon.discount_type)
+            if discount_type == "flat":
+                discount = coupon.discount_value or 0
+            elif discount_type == "percentage":
+                discount = subtotal * ((coupon.discount_value or 0) / 100)
+            applied_coupon_code = coupon.coupon_code
+        else:
+            # Coupon not applicable due to minimum value
             raise HTTPException(
-                status_code=400,
-                detail=f"Minimum cart value of ₹{coupon.minimum_value} required to apply this coupon."
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Coupon '{coupon.coupon_code}' requires a minimum cart value of {coupon.minimum_value}. Current subtotal is {subtotal}."
             )
 
-        discount_type = getattr(coupon.discount_type, "value", coupon.discount_type)
-        if discount_type == "flat":
-            discount = coupon.discount_value or 0
-        elif discount_type == "percentage":
-            discount = subtotal * ((coupon.discount_value or 0) / 100)
-
     total = max(0.0, subtotal - discount)
-    return float(subtotal), float(discount), float(total)
+    return float(subtotal), float(discount), float(total), applied_coupon_code
 
 def _serialize_cart(db: Session, cart: Cart, coupon: Optional["Coupon"] = None) -> CartOut:
     item_models = (
@@ -80,8 +80,8 @@ def _serialize_cart(db: Session, cart: Cart, coupon: Optional["Coupon"] = None) 
             )
         )
 
-    subtotal, discount, total = _compute_totals(db, items, coupon=coupon)
-    return CartOut(items=items, subtotal=subtotal, discount=discount, total=total, coupon=coupon.coupon_code if coupon else None)
+    subtotal, discount, total, applied_coupon_code  = _compute_totals(db, items, coupon=coupon)
+    return CartOut(items=items, subtotal=subtotal, discount=discount, total=total, coupon=applied_coupon_code)
 
 
 def get_or_create_cart(db: Session, user_id: int) -> Cart:
@@ -160,6 +160,7 @@ def remove_item(db: Session, user_id: int, product_id: int) -> CartOut:
 def clear_cart(db: Session, user_id: int) -> CartOut:
     cart = get_or_create_cart(db, user_id)
     db.query(CartItem).filter(CartItem.cart_id == cart.id).delete()
+    cart.coupon_id = None
     db.commit()
     return _serialize_cart(db, cart)
 

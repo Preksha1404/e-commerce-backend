@@ -31,10 +31,16 @@ class ProductService:
 
     def get_seller_products(self, seller_id: int):
         if self.current_user is None:
-            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required"
+            )
 
         if self.current_user.role == "seller" and self.current_user.id != seller_id:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You can only view your own products")
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only view your own products"
+            )
 
         products = (
             self.db.query(Product)
@@ -42,9 +48,6 @@ class ProductService:
             .order_by(Product.created_at.desc())
             .all()
         )
-
-        if not products:
-            raise HTTPException(status_code=404, detail="No products found for this seller")
 
         return products
 

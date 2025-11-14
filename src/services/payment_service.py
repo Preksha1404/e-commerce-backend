@@ -30,7 +30,6 @@ class PaymentService:
     def create_payment_intent(
         self,
         order_id: int,
-        amount: float,
         currency: Optional[str] = None,
         metadata: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
@@ -45,7 +44,7 @@ class PaymentService:
         if abs(amount - order.total_amount) > 0.01:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Payment amount {amount} does not match order total {order.total_amount}"
+                detail="Order total amount must be greater than 0"
             )
 
         amount_cents = int(amount * 100)
@@ -66,7 +65,7 @@ class PaymentService:
             payment = Payment(
                 order_id=order_id,
                 stripe_payment_intent_id=payment_intent.id,
-                amount=amount,
+                amount=payment_amount,
                 currency=currency,
                 status=PaymentStatus.PENDING,
                 payment_metadata=payment_metadata
@@ -78,7 +77,7 @@ class PaymentService:
             return {
                 "payment_intent_id": payment_intent.id,
                 "client_secret": payment_intent.client_secret,
-                "amount": amount,
+                "amount": payment_amount,
                 "currency": currency,
                 "status": payment_intent.status,
                 "order_id": order_id

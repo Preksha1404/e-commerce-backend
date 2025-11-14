@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status, BackgroundTasks
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 from src.models.orders import Order, OrderItem, OrderStatus, PaymentStatus
 from src.models.products import Product
 from src.models.addresses import Address
@@ -7,9 +7,9 @@ from src.models.users import User
 from src.schemas.orders import OrderCreateSchema, OrderResponseSchema
 from typing import List
 from src.utils.order_status import update_order_overall_status
-from src.services.product_service import ProductService
 from src.services.email_service import send_email
 from src.utils.email_templates import send_order_cancelled_email
+from src.services.cart_service import _serialize_cart, clear_cart, get_or_create_cart
 
 class OrderService:
     def __init__(self, db: Session):
@@ -36,36 +36,41 @@ class OrderService:
         if not address:
             raise HTTPException(status_code=404, detail="Address not found")
 
-        # Prepare order items and calculate total
-        total_amount = 0
+        # Get user's active cart with applied coupon
+        cart = get_or_create_cart(self.db, current_user.id)
+        if not cart or not cart.items:
+            raise HTTPException(status_code=400, detail="Cart is empty")
+
+        coupon = cart.coupon
+
+        # Compute totals with coupon
+        cart_out = _serialize_cart(self.db, cart, coupon=coupon)
+        discount = cart_out.discount
+        subtotal=cart_out.subtotal
+        total_amount = cart_out.total
+
+        # Prepare order items directly from cart
         order_items = []
-        for item in order_data.items:
+        for item in cart_out.items:
             product = self.db.query(Product).filter(Product.id == item.product_id).first()
             if not product:
                 raise HTTPException(status_code=404, detail=f"Product ID {item.product_id} not found")
-            if not product.is_active:
-                raise HTTPException(status_code=400, detail=f"Product ID {product.name} is inactive")
-            if product.is_deleted:
-                raise HTTPException(status_code=400, detail=f"Product ID {product.name} is deleted")
+            if not product.is_active or product.is_deleted:
+                raise HTTPException(status_code=400, detail=f"Product {product.name} is unavailable")
             if product.stock < item.quantity:
-                raise HTTPException(status_code=400, detail=f"Not enough stock for {product.name}")
-
-            unit_price = product.price
-            total_price = unit_price * item.quantity
-            total_amount += total_price
+                raise HTTPException(status_code=400, detail=f"Insufficient stock for {product.name}")
 
             order_items.append(
                 OrderItem(
                     product_id=item.product_id,
                     seller_id=product.seller_id,
                     quantity=item.quantity,
-                    unit_price=unit_price,
-                    total_price=total_price,
+                    unit_price=item.unit_price,
+                    total_price=item.line_total,
                 )
             )
 
-        # Create order with payment_status=FAILED initially
-        # Stock will only be deducted when payment succeeds (via webhook)
+        # Create order (mark payment_status=FAILED initially)
         order = Order(
             user_id=current_user.id,
             address_id=address.id,
@@ -75,16 +80,24 @@ class OrderService:
             payment_status=PaymentStatus.FAILED,
         )
         self.db.add(order)
-        self.db.flush()  # Get order.id
+        self.db.flush()  # to get order.id
 
-        # Add order items (DO NOT deduct stock here - will be deducted on payment success)
+        # Add order items
         for oi in order_items:
             oi.order_id = order.id
             self.db.add(oi)
 
+        # Commit and clear cart
         self.db.commit()
+        clear_cart(self.db, current_user.id)
+
         self.db.refresh(order)
-        return order
+        
+        response = OrderResponseSchema.model_validate(order, from_attributes=True)
+        response.discount = discount
+        response.subtotal = subtotal
+        response.coupon_code = coupon.coupon_code if coupon else None
+        return response
 
     async def cancel_order(self, order_id: int, current_user: User, background_tasks=BackgroundTasks):
         if current_user.role.value != "customer":
@@ -150,29 +163,42 @@ class OrderService:
         if current_user.role.value != "seller":
             raise HTTPException(status_code=403, detail="Not authorized")
 
+        # Eager-load items + product
         orders = (
             self.db.query(Order)
+            .options(
+                selectinload(Order.items).selectinload(OrderItem.product)
+            )
             .join(OrderItem)
-            .filter(OrderItem.seller_id == current_user.id)
+            .filter(OrderItem.seller_id == current_user.id,
+                    Order.payment_status == "paid")
             .all()
         )
 
+        if not orders:
+            return {
+                "message": "No orders found for this seller",
+                "orders": []
+            }
+
         seller_orders = []
         for order in orders:
-            seller_items = []
-            for item in order.items:
-                if item.seller_id == current_user.id:
-                    # Fetch minimal product info
-                    product = self.db.query(Product).filter(Product.id == item.product_id).first()
-                    seller_items.append({
-                        "id": item.id,
-                        "product": {"name": product.name, "sku": product.sku},
-                        "seller_id": item.seller_id,
-                        "quantity": item.quantity,
-                        "unit_price": item.unit_price,
-                        "total_price": item.total_price,
-                        "status": item.status
-                    })
+            seller_items = [
+                {
+                    "id": item.id,
+                    "product": {
+                        "name": item.product.name,
+                        "sku": item.product.sku
+                    },
+                    "seller_id": item.seller_id,
+                    "quantity": item.quantity,
+                    "unit_price": item.unit_price,
+                    "total_price": item.total_price,
+                    "status": item.status
+                }
+                for item in order.items
+                if item.seller_id == current_user.id
+            ]
 
             seller_orders.append({
                 "id": order.id,
@@ -184,36 +210,49 @@ class OrderService:
                 "address": order.address,
                 "items": seller_items
             })
+
         return seller_orders
-    
+
+
     def get_seller_order_details(self, order_id: int, current_user: User) -> dict:
         if current_user.role.value != "seller":
             raise HTTPException(status_code=403, detail="Not authorized")
 
-        order = self.db.query(Order).filter(Order.id == order_id).first()
+        # Eager-load items + product
+        order = (
+            self.db.query(Order)
+            .options(
+                selectinload(Order.items).selectinload(OrderItem.product)
+            )
+            .filter(Order.id == order_id)
+            .first()
+        )
+
         if not order:
             raise HTTPException(status_code=404, detail="Order not found")
 
-        seller_items = []
-        for item in order.items:
-            if item.seller_id == current_user.id:
-                # Fetch minimal product info
-                product = self.db.query(Product).filter(Product.id == item.product_id).first()
-                seller_items.append({
-                    "id": item.id,
-                    "product": {
-                        "name": product.name,
-                        "sku": product.sku
-                    },
-                    "seller_id": item.seller_id,
-                    "quantity": item.quantity,
-                    "unit_price": item.unit_price,
-                    "total_price": item.total_price,
-                    "status": item.status
-                })
+        seller_items = [
+            {
+                "id": item.id,
+                "product": {
+                    "name": item.product.name,
+                    "sku": item.product.sku
+                },
+                "seller_id": item.seller_id,
+                "quantity": item.quantity,
+                "unit_price": item.unit_price,
+                "total_price": item.total_price,
+                "status": item.status
+            }
+            for item in order.items
+            if item.seller_id == current_user.id
+        ]
 
         if not seller_items:
-            raise HTTPException(status_code=403, detail="This order does not contain your products")
+            raise HTTPException(
+                status_code=403, 
+                detail="This order does not contain your products"
+            )
 
         return {
             "id": order.id,
@@ -230,23 +269,29 @@ class OrderService:
         if current_user.role.value != "seller":
             raise HTTPException(status_code=403, detail="Only sellers can update item status")
 
-        order_item = self.db.query(OrderItem).filter(
-            OrderItem.id == item_id,
-            OrderItem.order_id == order_id,
-            OrderItem.seller_id == current_user.id,
-        ).first()
+        # Include product load
+        order_item = (
+            self.db.query(OrderItem)
+            .options(selectinload(OrderItem.product))
+            .filter(
+                OrderItem.id == item_id,
+                OrderItem.order_id == order_id,
+                OrderItem.seller_id == current_user.id
+            )
+            .first()
+        )
 
         if not order_item:
             raise HTTPException(status_code=404, detail="Item not found for this seller in this order")
 
-        # Restrict invalid transitions
+        # Restricted transitions
         if order_item.status in ["shipped", "delivered"] and new_status == "pending":
-            raise HTTPException(status_code=400, detail="Cannot change status from shipped/delivered to pending")
+            raise HTTPException(status_code=400, detail="Cannot move shipped/delivered to pending")
 
         if order_item.status == "delivered" and new_status == "shipped":
-            raise HTTPException(status_code=400, detail="Cannot change status from delivered to shipped")
+            raise HTTPException(status_code=400, detail="Cannot move delivered to shipped")
 
-        # Update valid status
+        # Update status
         order_item.status = new_status
         self.db.commit()
 

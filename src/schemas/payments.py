@@ -6,7 +6,6 @@ from src.models.payment import PaymentStatus
 
 class PaymentIntentCreate(BaseModel):
     order_id: int
-    amount: float = Field(..., gt=0, description="Payment amount in the smallest currency unit")
     currency: Optional[str] = Field(default="usd", description="Currency code (e.g., 'usd')")
     metadata: Optional[Dict[str, Any]] = None
 
