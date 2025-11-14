@@ -3,6 +3,23 @@ from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
 
+# --- Review Schemas ---
+class ReviewBase(BaseModel):
+    rating: float = Field(..., ge=0, le=5)
+    comment: str
+
+    model_config = {"from_attributes": True}
+
+class ReviewResponse(ReviewBase):
+    name: str
+
+    model_config = {"from_attributes": True}
+
+class ReviewsWithAverage(BaseModel):
+    average_rating: float
+    reviews: List[ReviewResponse]
+
+    model_config = {"from_attributes": True}
 
 # ---------------- Product Schemas ----------------
 
@@ -91,3 +108,14 @@ class BulkUploadResponse(BaseModel):
 
     class Config:
         orm_mode = True
+
+# ---------------- LLM Schemas ----------------
+
+class ReviewSummaryResponse(BaseModel):
+    summary: str
+
+class QARequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=500)
+
+class QAResponse(BaseModel):
+    answer: str

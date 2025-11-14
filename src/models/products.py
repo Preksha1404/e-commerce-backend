@@ -47,6 +47,7 @@ class Product(Base):
     category = relationship("Category", back_populates="products")
     seller = relationship("src.models.users.User", back_populates="products")
     images = relationship("ProductImage", back_populates="product")
+    reviews = relationship("Review", back_populates="product")
 
 
 class ProductImage(Base):
