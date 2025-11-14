@@ -24,7 +24,21 @@ def get_current_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
 
-    token_data = verify_token(token)
+    try:
+        token_data = verify_token(token)
+    except ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has expired. Please login again.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except InvalidTokenError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token. Please login.",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     user = db.query(User).filter(User.email == token_data.email).first()
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User does not exist")
@@ -34,7 +48,6 @@ def get_current_user(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Blocked user")
     
     return user
-
 
 def get_current_active_user(current_user: User = Depends(get_current_user)) -> User:
     return current_user

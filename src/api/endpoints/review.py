@@ -80,7 +80,9 @@ def get_reviews(
     reviews = db.query(Review).filter(Review.product_id == product_id).all()
     avg_rating = round(mean([r.rating for r in reviews]), 2) if reviews else 0.0
 
+    reviews_objs = [ReviewResponse.from_orm(r) for r in reviews]
+
     return ReviewsWithAverage(
         average_rating=avg_rating,
-        reviews=reviews
+        reviews=reviews_objs
     )

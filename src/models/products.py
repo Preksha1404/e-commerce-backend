@@ -61,7 +61,7 @@ class Product(Base):
         lazy="selectin"
     )
 
-    average_rating = Column(Float, default=0.0)
+    
 
 
 class ProductImage(Base):
