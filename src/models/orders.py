@@ -45,9 +45,11 @@ class Cart(Base):
 
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    coupon_id = Column(Integer, ForeignKey("coupons.id"), nullable=True)
 
     items = relationship("CartItem", back_populates="cart", cascade="all, delete-orphan")
-    user = relationship("User", back_populates="carts")
+    user = relationship("src.models.users.User", backref="carts")
+    coupon = relationship("Coupon", backref="carts", lazy="joined")
 
 
 class CartItem(Base):

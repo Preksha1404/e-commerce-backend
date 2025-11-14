@@ -3,13 +3,8 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from src.models.coupons import Coupon
 from src.schemas.coupons import CouponCreate, CouponUpdate
-from src.services.cart_service import get_or_create_cart, _serialize_cart
 from src.models.users import User
-from src.models.orders import Cart
-from typing import Optional
 from src.utils.coupons import generate_coupon_code
-from src.schemas.coupons import ApplyCouponResponse
-from src.schemas.cart import CartOut
 
 class CouponService:
     def __init__(self, db: Session):
@@ -104,68 +99,3 @@ class CouponService:
         coupon.coupon_status = False
         self.db.commit()
         return coupon
-    
-    def apply_coupon_to_cart(self, user: User, coupon_code: str) -> ApplyCouponResponse:
-        if not coupon_code:
-            raise HTTPException(status_code=400, detail="Coupon code required")
-
-        # Validate coupon
-        coupon: Optional[Coupon] = (
-            self.db.query(Coupon)
-            .filter(Coupon.coupon_code == coupon_code, Coupon.coupon_status == True)
-            .with_for_update()  # prevents race condition when multiple users apply same coupon
-            .first()
-        )
-
-        if not coupon:
-            raise HTTPException(status_code=404, detail="Coupon not found or inactive")
-
-        # Global Usage Limit Check
-        if coupon.used_count >= coupon.usage_limit:
-            return ApplyCouponResponse(
-                coupon_code=coupon.coupon_code,
-                valid=False,
-                message="Coupon usage limit reached",
-                discount_amount=0.0,
-                final_price=0.0,
-                items=[]
-            )
-
-        # Expiry check
-        if coupon.expiry_date and coupon.expiry_date < datetime.utcnow():
-            return ApplyCouponResponse(
-                coupon_code=coupon.coupon_code,
-                valid=False,
-                message="Coupon expired"
-            )
-
-        # User cart
-        cart: Cart = get_or_create_cart(self.db, user.id)
-        cart_out: CartOut = _serialize_cart(self.db, cart)
-
-        # Minimum order value check
-        if coupon.minimum_value and cart_out.subtotal < coupon.minimum_value:
-            return ApplyCouponResponse(
-                coupon_code=coupon.coupon_code,
-                valid=False,
-                message=f"Coupon not valid — minimum cart value should be ₹{coupon.minimum_value}",
-                discount_amount=0.0,
-                final_price=cart_out.subtotal,
-                items=cart_out.items
-            )
-
-        # Apply coupon
-        cart_out = _serialize_cart(self.db, cart, coupon=coupon)
-
-        # Update Usage Countc
-        coupon.used_count += 1
-        self.db.commit()
-
-        return ApplyCouponResponse(
-            coupon_code=coupon.coupon_code,
-            valid=True,
-            message="Coupon applied successfully",
-            discount_amount=cart_out.discount,
-            final_price=cart_out.total,
-            items=cart_out.items
-        )

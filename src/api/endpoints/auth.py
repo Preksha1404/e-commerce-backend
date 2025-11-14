@@ -21,9 +21,14 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 load_dotenv()
 
+<<<<<<< HEAD
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 
+=======
+SECRET_KEY=os.getenv("SECRET_KEY")
+ALGORITHM=os.getenv("ALGORITHM")
+>>>>>>> b3ea0263ad5a6cf78871dd416363497b46549c41
 
 def get_db():
     db = SessionLocal()
@@ -46,8 +51,14 @@ def login(credentials: UserLogin, db: Session = Depends(get_db)):
     }
 
     response = JSONResponse(content=content)
+<<<<<<< HEAD
     response.set_cookie("access_token", access_token, httponly=True, secure=True, samesite="None")
     response.set_cookie("refresh_token", refresh_token, httponly=True, secure=True, samesite="None")
+=======
+
+    response.set_cookie("access_token", access, httponly=True, secure=True, samesite="None")
+    response.set_cookie("refresh_token", refresh, httponly=True, secure=True, samesite="None")
+>>>>>>> b3ea0263ad5a6cf78871dd416363497b46549c41
 
     return response
 
