@@ -23,19 +23,24 @@ def scrape_from_html(file_path, seller_id=95):
             return None
 
         # Price
-        try:
-            whole = soup.select_one("span.a-price-whole").text.replace(",", "")
-            frac = soup.select_one("span.a-price-fraction").text
-            price = float(f"{whole}.{frac}")
-        except:
-            price = 0.0
+        price = 0.0
+
+        # Try 1: Amazon standard offscreen price
+        price_tag = soup.select_one("span.a-price > span.a-offscreen")
+
+        # Try 2: Any offscreen price (fallback)
+        if not price_tag:
+            price_tag = soup.select_one("span.a-offscreen")
+
+        # Convert to float
+        if price_tag:
+            try:
+                price = float(price_tag.text.replace("₹", "").replace(",", "").strip())
+            except:
+                price = 0.0
 
         # Discount Price
-        try:
-            old_p = soup.select_one("span.a-text-price span.a-offscreen").text
-            discount_price = float(old_p.replace("₹", "").replace(",", "").strip())
-        except:
-            discount_price = None
+        discount_price = None
 
         # Images
         images = []
@@ -46,7 +51,7 @@ def scrape_from_html(file_path, seller_id=95):
 
         # Reviews
         reviews = []
-        blocks = soup.select("div[data-hook='review']")
+        blocks = soup.select(".review")
         for b in blocks:
             try:
                 reviews.append({
@@ -153,5 +158,5 @@ def run_db_saver(preview=False):
         print(f"✅ Saved: {data['name']}")
 
 if __name__ == "__main__":
-    run_db_saver(preview=True)
+    run_db_saver(preview=False)
 
