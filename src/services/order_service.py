@@ -176,10 +176,7 @@ class OrderService:
         )
 
         if not orders:
-            return {
-                "message": "No orders found for this seller",
-                "orders": []
-            }
+            return []
 
         seller_orders = []
         for order in orders:

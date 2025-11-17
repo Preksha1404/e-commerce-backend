@@ -10,7 +10,7 @@ from src.utils.functions import generate_slug, generate_simple_sku
 HTML_DIR = "data/scraped_html"
 
 # ---------- PARSE PRODUCT ----------
-def scrape_from_html(file_path, seller_id=95):
+def scrape_from_html(file_path, seller_id=5):
     # Use a temporary session just to fetch category_id
     with SessionLocal() as session:
         with open(file_path, "r", encoding="utf-8") as f:
@@ -25,15 +25,25 @@ def scrape_from_html(file_path, seller_id=95):
         # Price
         price = 0.0
 
-        # Try 1: Amazon standard offscreen price
+        # Try 1: Standard price
         price_tag = soup.select_one("span.a-price > span.a-offscreen")
 
-        # Try 2: Any offscreen price (fallback)
+        # Try 2: any offscreen price
         if not price_tag:
             price_tag = soup.select_one("span.a-offscreen")
 
-        # Convert to float
-        if price_tag:
+        # -------- FASHION-SPECIFIC PRICE PARSING --------
+        if (not price_tag or price_tag.text.strip() == "₹0") and "fashion" in file_path.lower():
+            # Fashion pages often store price inside "a-price-whole"
+            fashion_price = soup.select_one("span.a-price-whole")
+            if fashion_price:
+                try:
+                    price = float(fashion_price.text.replace(",", "").strip())
+                except:
+                    pass
+
+        # Convert final price
+        if price_tag and price == 0:
             try:
                 price = float(price_tag.text.replace("₹", "").replace(",", "").strip())
             except:
