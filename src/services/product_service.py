@@ -49,16 +49,7 @@ class ProductService:
             .all()
         )
 
-        if not products:
-            return {
-                "message": "No products found. Start adding your first product!",
-                "products": []
-            }
-
-        return {
-            "message": "Products fetched successfully",
-            "products": products
-        }
+        return products
 
     async def create_product(
         self,
