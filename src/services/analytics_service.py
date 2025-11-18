@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import List, Dict, Any
 from src.models.orders import Order, OrderItem, OrderStatus
 from src.models.users import User
-from src.models.products import Product
+from src.models.products import Product, Category
 from src.models.coupons import Coupon
 from src.models.payments import Payment, PaymentStatus
 
@@ -83,12 +83,12 @@ class AnalyticsService:
 
         return {
             "totalRevenue": {
-                "value": float(current_revenue),
-                "trend": float(revenue_trend)
+                "totalRevenue": float(current_revenue),
+                "lastMonthRevenue": float(last_revenue)
             },
             "totalOrders": {
-                "value": current_orders,
-                "trend": float(orders_trend)
+                "totalOrders": current_orders,
+                "lastMonthOrders": last_orders
             },
             "activeCustomers": {
                 "total": total_customers,
@@ -140,7 +140,7 @@ class AnalyticsService:
 
             success = self.db.query(func.count(Order.id)).filter(
                 and_(Order.created_at >= month_start, Order.created_at <= month_end,
-                     Order.payment_status == PaymentStatus.SUCCEEDED)
+                     Order.payment_status == "paid")
             ).scalar()
 
             cancelled = self.db.query(func.count(Order.id)).filter(
@@ -172,11 +172,11 @@ class AnalyticsService:
 
         # Category Revenue Breakdown
         category_revenue = self.db.query(
-            Product.category,
+            Category.name,
             func.sum(OrderItem.total_price)
-        ).join(OrderItem.product).join(OrderItem.order).filter(
+        ).join(OrderItem.product).join(Product.category).join(OrderItem.order).filter(
             Order.created_at >= now - timedelta(days=365)
-        ).group_by(Product.category).all()
+        ).group_by(Category.id, Category.name).all()
 
         category_data = [{"category": cat, "revenue": float(rev)} for cat, rev in category_revenue]
 
