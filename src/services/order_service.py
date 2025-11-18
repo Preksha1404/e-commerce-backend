@@ -46,10 +46,10 @@ class OrderService:
         # Compute totals with coupon
         cart_out = _serialize_cart(self.db, cart, coupon=coupon)
         discount = cart_out.discount
-        subtotal=cart_out.subtotal
+        subtotal = cart_out.subtotal
         total_amount = cart_out.total
 
-        # Prepare order items directly from cart
+        # Prepare order items from cart
         order_items = []
         for item in cart_out.items:
             product = self.db.query(Product).filter(Product.id == item.product_id).first()
@@ -70,7 +70,7 @@ class OrderService:
                 )
             )
 
-        # Create order (mark payment_status=FAILED initially)
+        # Create order
         order = Order(
             user_id=current_user.id,
             address_id=address.id,
@@ -78,21 +78,33 @@ class OrderService:
             total_amount=total_amount,
             status=OrderStatus.PENDING,
             payment_status=PaymentStatus.FAILED,
+
+            # STORE COUPON USAGE
+            coupon_id=coupon.id if coupon else None,
+            coupon_discount=discount if coupon else 0
         )
+
         self.db.add(order)
-        self.db.flush()  # to get order.id
+        self.db.flush()  # Get order.id
 
         # Add order items
         for oi in order_items:
             oi.order_id = order.id
             self.db.add(oi)
 
-        # Commit and clear cart
+        # UPDATE COUPON USAGE COUNT ONLY AFTER ORDER CREATED
+        if coupon:
+            coupon.used_count += 1
+
+        # Commit everything
         self.db.commit()
+
+        # Clear cart AFTER coupon usage is saved
         clear_cart(self.db, current_user.id)
 
         self.db.refresh(order)
-        
+
+        # Build API response
         response = OrderResponseSchema.model_validate(order, from_attributes=True)
         response.discount = discount
         response.subtotal = subtotal

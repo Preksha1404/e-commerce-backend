@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from src.core.database import engine, Base
-from src.api.endpoints import users, auth, sellers, products, profile, cart, addresses, payments, orders, user_orders, seller_orders, coupons, review
+from src.api.endpoints import users, auth, sellers, products, profile, cart, addresses, payments, orders, user_orders, seller_orders, coupons, review, seller_analytics
 from src.core.seed import seed_admin, seed_default_category
 from contextlib import asynccontextmanager  
 from fastapi.middleware.cors import CORSMiddleware
@@ -67,3 +67,4 @@ app.include_router(addresses.router)
 app.include_router(payments.router)
 app.include_router(coupons.router)
 app.include_router(review.router)
+app.include_router(seller_analytics.router)
