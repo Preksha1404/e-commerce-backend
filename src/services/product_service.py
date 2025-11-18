@@ -1,10 +1,12 @@
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from fastapi import HTTPException, status, UploadFile, Response
 from typing import List, Optional, Union
 import cloudinary
 import cloudinary.uploader
 from src.models.products import Product, ProductImage
 from src.models.products import Category
+from src.models.review import Review
 from src.schemas.products import AddStockRequest, BulkUploadResponse, BulkUploadRow
 from src.utils.bulk_upload import process_upload_file, validate_row, save_products_batch, generate_bulk_upload_template
 from src.utils.functions import generate_slug, generate_simple_sku
@@ -27,6 +29,8 @@ class ProductService:
             .filter(Product.is_deleted == False)
             .all()
         )
+        for product in products:
+            product.average_rating = self.get_average_rating(product.id)
         return products
 
     def get_seller_products(self, seller_id: int):
@@ -48,7 +52,8 @@ class ProductService:
             .order_by(Product.created_at.desc())
             .all()
         )
-
+        for product in products:
+            product.average_rating = self.get_average_rating(product.id)
         return products
 
     async def create_product(
@@ -113,6 +118,14 @@ class ProductService:
         self.db.refresh(db_product)
         return db_product
 
+    def get_average_rating(self, product_id: int):
+        avg_rating = (
+            self.db.query(func.avg(Review.rating))
+            .filter(Review.product_id == product_id)
+            .scalar()
+        )
+        return float(avg_rating) if avg_rating else None
+
     def get_product(self, product_id: int):
         db_product = (
             self.db.query(Product)
@@ -121,6 +134,7 @@ class ProductService:
         )
         if not db_product:
             raise HTTPException(status_code=404, detail="Product not found")
+        db_product.average_rating = self.get_average_rating(product_id)
         return db_product
 
     def get_products_by_category_name(self, category_name: str):
@@ -135,7 +149,8 @@ class ProductService:
         )
         if not products:
             raise HTTPException(status_code=404, detail="No products found for this category")
-
+        for product in products:
+            product.average_rating = self.get_average_rating(product.id)
         return products
 
     async def update_product(
@@ -421,7 +436,8 @@ class ProductService:
             .order_by(Product.created_at.desc())
             .all()
         )
-        
+        for product in products:
+            product.average_rating = self.get_average_rating(product.id)
         return products
 
     def get_new_arrivals(self):
@@ -435,9 +451,9 @@ class ProductService:
             .filter(Category.is_active == True)
             .all()
         )
-        
+
         new_arrivals = []
-        
+
         for category in categories:
             # Base query for products in this category
             base_query = (
@@ -449,7 +465,7 @@ class ProductService:
                     Product.is_active == True
                 )
             )
-            
+
             # Get latest 2 products from this category
             products = (
                 base_query
@@ -457,10 +473,11 @@ class ProductService:
                 .limit(2)
                 .all()
             )
-            
+
             new_arrivals.extend(products)
-        
+
         # Sort all products by created_at descending
         new_arrivals.sort(key=lambda x: x.created_at, reverse=True)
-        
+        for product in new_arrivals:
+            product.average_rating = self.get_average_rating(product.id)
         return new_arrivals

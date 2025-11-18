@@ -12,6 +12,7 @@ from src.models.orders import Order, OrderItem
 from src.models.payments import Payment, PaymentStatus
 from src.models.products import Product
 from src.models.users import User
+from src.models.coupons import Coupon
 from src.core.database import get_db
 from src.utils.auth import get_current_active_user
 
@@ -20,7 +21,7 @@ router = APIRouter(prefix="/invoice", tags=["Invoice"])
 
 LOGO_PATH = "assets/logo.png"
 
-# ----------------- Fetch Invoice Data -----------------
+# Fetch Invoice Data
 def get_invoice_data(order_id: int, db: Session):
     order = db.query(Order).filter(Order.id == order_id).first()
     if not order:
@@ -57,13 +58,21 @@ def get_invoice_data(order_id: int, db: Session):
     if payment:
         payment_info = {
             "id": payment.id,
-            "status": "COMPLETED" if payment.status == PaymentStatus.SUCCEEDED else payment.status.name,
-            "date": str(getattr(payment, "payment_date", "")),
-            "reference": getattr(payment, "transaction_reference", ""),
+            "status": "COMPLETED" if payment.status == PaymentStatus.SUCCEEDED else payment.status.name
         }
 
     subtotal = sum(i["subtotal"] for i in item_list)
-    total = subtotal
+    discount = 0.0
+    coupon = order.coupon
+    if coupon:
+        # Apply coupon discount logic similar to cart_service
+        if not coupon.minimum_value or subtotal >= coupon.minimum_value:
+            discount_type = getattr(coupon.discount_type, "value", coupon.discount_type)
+            if discount_type == "flat":
+                discount = coupon.discount_value or 0
+            elif discount_type == "percentage":
+                discount = subtotal * ((coupon.discount_value or 0) / 100)
+    total = max(0.0, subtotal - discount)
 
     return {
         "invoice_no": f"INV-{order.id:05d}",
@@ -76,14 +85,13 @@ def get_invoice_data(order_id: int, db: Session):
         "payment_info": payment_info,
         "summary": {
             "subtotal": subtotal,
-            "discount": 0.0,
-            "tax": 0.0,
+            "discount": discount,
             "shipping": 0.0,
             "total": total,
         },
     }
 
-# ----------------- PDF Generator -----------------
+# PDF Generator
 def generate_pdf(invoice_data, file_obj):
     doc = SimpleDocTemplate(
         file_obj,
@@ -100,7 +108,7 @@ def generate_pdf(invoice_data, file_obj):
     styles.add(ParagraphStyle(name="NormalBold", fontSize=10, fontName="Helvetica-Bold", leading=14))
     styles.add(ParagraphStyle(name="Small", fontSize=9, fontName="Helvetica", textColor=colors.grey))
 
-    # ----------------- Currency Cell -----------------
+    # Currency Cell
     def currency_cell(amount):
         try:
             amount_value = float(amount)
@@ -108,7 +116,7 @@ def generate_pdf(invoice_data, file_obj):
             amount_value = 0.0
         return Paragraph(f"Rs.{amount_value:,.2f}", styles["Normal"])
 
-    # ----------------- Header -----------------
+    # Header
     logo = RLImage(LOGO_PATH, width=1.0*inch, height=1.0*inch) if os.path.exists(LOGO_PATH) else Paragraph("<b>Cartify</b>", styles["CartifyTitle"])
     header = Table([[logo, "", Paragraph("INVOICE", styles["RightTitle"])]], colWidths=[80, 350, 100])
     header.setStyle(TableStyle([
@@ -119,7 +127,7 @@ def generate_pdf(invoice_data, file_obj):
     elements.append(header)
     elements.append(Spacer(1, 12))
 
-    # ----------------- Invoice Info -----------------
+    # Invoice Info
     info_table = Table([
         ["Invoice No", invoice_data["invoice_no"]],
         ["Order ID", invoice_data["order_id"]],
@@ -131,12 +139,17 @@ def generate_pdf(invoice_data, file_obj):
         ("FONTSIZE", (0, 0), (-1, -1), 10),
         ("BOTTOMPADDING", (0, 0), (-1, -1), 3)
     ]))
-    elements.append(info_table)
+    full_width_wrapper = Table([[info_table]], colWidths=[528])
+    full_width_wrapper.setStyle(TableStyle([
+        ("ALIGN", (0, 0), (-1, -1), "LEFT")
+    ]))
+
+    elements.append(full_width_wrapper)
     elements.append(Spacer(1, 6))
     elements.append(Paragraph(f"<b>Customer:</b> {invoice_data['customer_name']}", styles["Normal"]))
     elements.append(Spacer(1, 15))
 
-    # ----------------- Items Table -----------------
+    # Items Table
     table_data = [["Sr", "Product", "SKU", "Qty", "Price", "Subtotal"]]
     for item in invoice_data["items"]:
         table_data.append([
@@ -164,7 +177,7 @@ def generate_pdf(invoice_data, file_obj):
     elements.append(item_table)
     elements.append(Spacer(1, 15))
 
-    # ----------------- Payment & Summary -----------------
+    # Payment & Summary
     p = invoice_data["payment_info"]
     s = invoice_data["summary"]
 
@@ -172,14 +185,11 @@ def generate_pdf(invoice_data, file_obj):
         [Paragraph("<b>Payment Info</b>", styles["NormalBold"]), ""],
         ["Payment ID:", p.get("id", "")],
         ["Status:", p.get("status", "")],
-        ["Date:", p.get("date", "")],
-        ["Reference:", p.get("reference", "")]
     ], colWidths=[130, 200])
 
     right_table = Table([
         ["Subtotal", currency_cell(s.get("subtotal", 0.0))],
         ["Discount", currency_cell(s.get("discount", 0.0))],
-        ["Tax", currency_cell(s.get("tax", 0.0))],
         ["Shipping", currency_cell(s.get("shipping", 0.0))],
         [Paragraph("<b>Total Payable</b>", styles["NormalBold"]), currency_cell(s.get("total", 0.0))]
     ], colWidths=[120, 100])
@@ -190,10 +200,9 @@ def generate_pdf(invoice_data, file_obj):
     elements.append(Spacer(1, 15))
 
     # ----------------- Notes -----------------
-    elements.append(Paragraph("<b>Notes & Policies</b>", styles["NormalBold"]))
+    elements.append(Paragraph("<b>Notes </b>", styles["NormalBold"]))
     elements.append(Paragraph(
         "Thank you for shopping with <b>Cartify</b>!<br/>"
-        "For returns or exchanges, please visit our Returns Center within 7 days of delivery.<br/>"
         "Customer Support: support@cartify.com",
         styles["Small"]
     ))

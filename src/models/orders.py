@@ -54,6 +54,7 @@ class Order(Base):
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING)
     payment_status = Column(Enum(PaymentStatus, native_enum=False, length=20), default=PaymentStatus.FAILED)
     address_id = Column(Integer, ForeignKey("addresses.id"), nullable=False)
+    coupon_id = Column(Integer, ForeignKey("coupons.id"), nullable=True)
     payment_method = Column(String, nullable=True)
     coupon_id = Column(Integer, ForeignKey("coupons.id"), nullable=True)
     coupon_discount = Column(Float, default=0)
