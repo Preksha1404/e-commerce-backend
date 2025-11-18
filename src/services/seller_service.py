@@ -3,7 +3,7 @@ from fastapi import HTTPException, UploadFile, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 from typing import List, Optional
 import os
-from src.utils.email_templates import seller_welcome_template, seller_verification_template, seller_account_approved_template
+from src.utils.email_templates import seller_welcome_template, seller_verification_template, seller_account_approved_template, seller_account_rejected_template
 from src.services.email_service import send_email
 from src.models.users import User
 from src.schemas.users import SellerCreate, SellerUpdate
@@ -97,6 +97,15 @@ class SellerService:
         elif status == "rejected":
             seller.is_active = False
             seller.is_blocked = True
+
+            subject, html = seller_account_rejected_template(seller.full_name)
+
+            await send_email(
+                background_tasks,
+                to_email=seller.email,
+                subject=subject,
+                html_content=html
+            )
 
         elif status == "pending":
             seller.is_active = False

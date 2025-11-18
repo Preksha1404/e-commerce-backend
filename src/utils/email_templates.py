@@ -254,3 +254,56 @@ def seller_account_approved_template(full_name: str):
     """
 
     return subject, html_content
+
+def seller_account_rejected_template(full_name: str):
+    subject = "Your Seller Account Status Update"
+
+    html_content = f"""
+    <html>
+      <body style="margin:0; padding:0; background-color:#EFEBE9; 
+                   font-family:'Helvetica Neue', Arial, sans-serif; color:#7B5C52;">
+
+        <div style="max-width:600px; margin:0 auto; background-color:white; 
+                    border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
+
+          <!-- Header -->
+          <div style="background-color:#7B5C52; padding:20px; text-align:center;">
+            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" 
+                 alt="Cartify Logo" width="120" />
+          </div>
+
+          <!-- Main Content -->
+          <div style="padding:40px 30px; text-align:center;">
+            <h1 style="color:#7B5C52; font-size:28px;">Account Review Update</h1>
+            <p style="font-size:16px;">
+              Hi <strong>{full_name}</strong>, unfortunately your seller account request 
+              has been <strong>rejected</strong> at this time.
+            </p>
+
+            <p style="font-size:15px; margin-top:20px;">
+              Please review your details and try submitting again with correct information.
+              Our team will be happy to review your application once more.
+            </p>
+
+            <div style="margin-top:30px;">
+              <a href="{FRONTEND_URL}/support"
+                 style="background-color:#7B5C52; color:white; padding:12px 28px; 
+                        border-radius:6px; text-decoration:none; font-size:16px; 
+                        font-weight:bold;">
+                Contact Support
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div style="background-color:#EFEBE9; padding:20px; text-align:center; 
+                      font-size:13px; color:#7B5C52;">
+            <p>© {datetime.now().year} Cartify. All rights reserved.</p>
+          </div>
+
+        </div>
+      </body>
+    </html>
+    """
+
+    return subject, html_content
