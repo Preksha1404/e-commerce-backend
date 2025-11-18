@@ -294,3 +294,70 @@ def coupon_usage(
         "labels": labels,
         "usage": data
     }
+
+@router.get("/low-stock-items")
+def get_low_stock_items(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    if current_user.role != "seller":
+        raise HTTPException(status_code=403, detail="Only sellers can view analytics")
+
+    seller_id = current_user.id
+
+    low_stock_products = db.query(
+        Product.id,
+        Product.name,
+        Product.sku,
+        Product.stock
+    ).filter(
+        Product.seller_id == seller_id,
+        Product.stock < 10
+    ).all()
+
+    return [
+        {
+            "product_id": prod.id,
+            "product_name": prod.name,
+            "sku": prod.sku,
+            "stock": prod.stock,
+        }
+        for prod in low_stock_products
+    ]
+
+@router.get("/product-performance")
+def product_performance(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    if current_user.role != "seller":
+        raise HTTPException(status_code=403, detail="Only sellers can view analytics")
+
+    seller_id = current_user.id
+
+    results = (
+        db.query(
+            Product.id,
+            Product.name,
+            Product.sku,
+            Product.stock,
+            Product.status,
+            func.COALESCE(func.sum(OrderItem.quantity), 0).label("units_sold")
+        )
+        .outerjoin(OrderItem, Product.id == OrderItem.product_id)
+        .filter(Product.seller_id == seller_id)
+        .group_by(Product.id)
+        .all()
+    )
+
+    return [
+        {
+            "product_id": r.id,
+            "product_name": r.name,
+            "sku": r.sku,
+            "units_sold": r.units_sold,
+            "stock": r.stock,
+            "approval_status": r.status
+        }
+        for r in results
+    ]
