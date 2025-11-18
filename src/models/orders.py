@@ -54,6 +54,7 @@ class Order(Base):
     status = Column(Enum(OrderStatus), default=OrderStatus.PENDING)
     payment_status = Column(Enum(PaymentStatus, native_enum=False, length=20), default=PaymentStatus.FAILED)
     address_id = Column(Integer, ForeignKey("addresses.id"), nullable=False)
+    coupon_id = Column(Integer, ForeignKey("coupons.id"), nullable=True)
     payment_method = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -62,6 +63,7 @@ class Order(Base):
     items = relationship("OrderItem", back_populates="order", cascade="all, delete-orphan")
     user = relationship("src.models.users.User", backref="orders")
     address = relationship("Address", back_populates="orders")
+    coupon = relationship("Coupon", backref="orders", lazy="joined")
 
 
 class OrderItem(Base):

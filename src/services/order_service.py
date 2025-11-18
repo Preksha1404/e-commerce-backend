@@ -78,6 +78,7 @@ class OrderService:
             total_amount=total_amount,
             status=OrderStatus.PENDING,
             payment_status=PaymentStatus.FAILED,
+            coupon_id=coupon.id if coupon else None,
         )
         self.db.add(order)
         self.db.flush()  # to get order.id
