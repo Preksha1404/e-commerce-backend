@@ -1,8 +1,8 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import func, extract, and_, or_, desc, asc
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
 from typing import List, Dict, Any
-from src.models.orders import Order, OrderItem, OrderStatus
+from src.models.orders import Order, OrderItem, OrderStatus, PaymentStatus as OrderPaymentStatus
 from src.models.users import User
 from src.models.products import Product
 from src.models.coupons import Coupon
@@ -271,3 +271,280 @@ class AnalyticsService:
             "status": status.value,
             "createdDate": created_at.isoformat()
         } for oid, customer, amount, status, created_at in recent_orders]
+
+class SellerAnalyticsService:
+    """Seller-scoped analytics service. Instantiate with db Session and call methods with seller_id."""
+
+    def __init__(self, db: Session):
+        self.db = db
+
+    def overview(self, seller_id: int) -> Dict[str, Any]:
+        today = date.today()
+        yesterday = today - timedelta(days=1)
+        current_month = today.month
+        current_year = today.year
+        last_month_date = (today.replace(day=1) - timedelta(days=1))
+        last_month = last_month_date.month
+        last_month_year = last_month_date.year
+
+        # Today's revenue
+        todays_revenue = float(
+            self.db.query(func.coalesce(func.sum(OrderItem.total_price), 0))
+            .join(Order, Order.id == OrderItem.order_id)
+            .filter(OrderItem.seller_id == seller_id,
+                    func.date(Order.created_at) == today,
+                    Order.payment_status == OrderPaymentStatus.PAID)
+            .scalar() or 0.0
+        )
+
+        # Yesterday revenue
+        yesterday_revenue = float(
+            self.db.query(func.coalesce(func.sum(OrderItem.total_price), 0))
+            .join(Order, Order.id == OrderItem.order_id)
+            .filter(OrderItem.seller_id == seller_id,
+                    func.date(Order.created_at) == yesterday,
+                    Order.payment_status == OrderPaymentStatus.PAID)
+            .scalar() or 0.0
+        )
+
+        # Monthly revenue
+        monthly_revenue = float(
+            self.db.query(func.coalesce(func.sum(OrderItem.total_price), 0))
+            .join(Order, Order.id == OrderItem.order_id)
+            .filter(OrderItem.seller_id == seller_id,
+                    extract("month", Order.created_at) == current_month,
+                    extract("year", Order.created_at) == current_year,
+                    Order.payment_status == OrderPaymentStatus.PAID)
+            .scalar() or 0.0
+        )
+
+        # Last month revenue
+        last_month_revenue = float(
+            self.db.query(func.coalesce(func.sum(OrderItem.total_price), 0))
+            .join(Order, Order.id == OrderItem.order_id)
+            .filter(OrderItem.seller_id == seller_id,
+                    extract("month", Order.created_at) == last_month,
+                    extract("year", Order.created_at) == last_month_year,
+                    Order.payment_status == OrderPaymentStatus.PAID)
+            .scalar() or 0.0
+        )
+
+        # Total revenue
+        total_revenue = float(
+            self.db.query(func.coalesce(func.sum(OrderItem.total_price), 0))
+            .join(Order, Order.id == OrderItem.order_id)
+            .filter(OrderItem.seller_id == seller_id,
+                    Order.payment_status == OrderPaymentStatus.PAID)
+            .scalar() or 0.0
+        )
+
+        # Order counts
+        delivered_orders = int(
+            self.db.query(func.coalesce(func.count(Order.id), 0))
+            .join(OrderItem, OrderItem.order_id == Order.id)
+            .filter(OrderItem.seller_id == seller_id, Order.status == OrderStatus.DELIVERED)
+            .scalar() or 0
+        )
+
+        pending_orders = int(
+            self.db.query(func.coalesce(func.count(Order.id), 0))
+            .join(OrderItem, OrderItem.order_id == Order.id)
+            .filter(OrderItem.seller_id == seller_id, Order.status == OrderStatus.PENDING)
+            .scalar() or 0
+        )
+
+        total_orders = int(
+            self.db.query(func.coalesce(func.count(Order.id), 0))
+            .join(OrderItem, OrderItem.order_id == Order.id)
+            .filter(OrderItem.seller_id == seller_id)
+            .scalar() or 0
+        )
+
+        # Pending shipments (OrderItem-level)
+        pending_shipments = int(
+            self.db.query(func.coalesce(func.count(OrderItem.id), 0))
+            .filter(OrderItem.seller_id == seller_id, OrderItem.status.in_([OrderStatus.PENDING, OrderStatus.SHIPPED]))
+            .scalar() or 0
+        )
+
+        # Products stats
+        total_products = int(self.db.query(func.coalesce(func.count(Product.id), 0)).filter(Product.seller_id == seller_id).scalar() or 0)
+        active_products = int(self.db.query(func.coalesce(func.count(Product.id), 0)).filter(Product.seller_id == seller_id, Product.status == "approved").scalar() or 0)
+        pending_products = int(self.db.query(func.coalesce(func.count(Product.id), 0)).filter(Product.seller_id == seller_id, Product.status == "pending").scalar() or 0)
+        low_stock_items = int(self.db.query(func.coalesce(func.count(Product.id), 0)).filter(Product.seller_id == seller_id, Product.stock < 10).scalar() or 0)
+
+        # Coupon usage: count of Orders that used a coupon issued by seller
+        coupon_usage = int(
+            self.db.query(func.coalesce(func.count(Order.id), 0))
+            .join(Coupon, Order.coupon_id == Coupon.id)
+            .filter(Coupon.user_id == seller_id)
+            .scalar() or 0
+        )
+
+        return {
+            "total_revenue": total_revenue,
+            "monthly_revenue": monthly_revenue,
+            "last_month_revenue": last_month_revenue,
+            "todays_revenue": todays_revenue,
+            "yesterday_revenue": yesterday_revenue,
+            "total_orders": total_orders,
+            "delivered_orders": delivered_orders,
+            "pending_orders": pending_orders,
+            "pending_shipments": pending_shipments,
+            "total_products": total_products,
+            "active_products": active_products,
+            "pending_approval_products": pending_products,
+            "low_stock_items": low_stock_items,
+            "coupon_usage": coupon_usage
+        }
+
+    def revenue_trend(self, seller_id: int) -> Dict[str, List]:
+        today = date.today()
+        start_date = (today.replace(day=1) - timedelta(days=365))
+
+        rows = self.db.query(
+            extract('year', Order.created_at).label("year"),
+            extract('month', Order.created_at).label("month"),
+            func.coalesce(func.sum(OrderItem.total_price), 0).label("revenue")
+        ).join(Order, Order.id == OrderItem.order_id).filter(
+            OrderItem.seller_id == seller_id,
+            Order.payment_status == OrderPaymentStatus.PAID,
+            Order.created_at >= start_date
+        ).group_by(
+            extract('year', Order.created_at),
+            extract('month', Order.created_at)
+        ).all()
+
+        revenue_map = {(int(year), int(month)): float(revenue) for year, month, revenue in rows}
+
+        month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+        labels = []
+        data = []
+
+        # Build the last 12 months in chronological order
+        months_list = []
+        current = today.replace(day=1)
+        for _ in range(11):
+            # Move back 11 months
+            if current.month == 1:
+                current = current.replace(year=current.year - 1, month=12)
+            else:
+                current = current.replace(month=current.month - 1)
+
+        for _ in range(12):
+            year = current.year
+            month = current.month
+            months_list.append((year, month))
+            if month == 12:
+                current = current.replace(year=year + 1, month=1)
+            else:
+                current = current.replace(month=month + 1)
+
+        for year, month in months_list:
+            labels.append(f"{month_names[month - 1]} {year}")
+            data.append(revenue_map.get((year, month), 0.0))
+
+        return {"labels": labels, "data": data}
+
+    def order_status_distribution(self, seller_id: int) -> Dict[str, List]:
+        rows = self.db.query(Order.status, func.coalesce(func.count(Order.id), 0)).join(
+            OrderItem, OrderItem.order_id == Order.id
+        ).filter(OrderItem.seller_id == seller_id).group_by(Order.status).all()
+
+        total_orders = sum(count for _, count in rows) or 1
+
+        status_order = [OrderStatus.DELIVERED, OrderStatus.PENDING, OrderStatus.SHIPPED, OrderStatus.CANCELLED]
+        status_name_map = {
+            OrderStatus.DELIVERED: "Delivered",
+            OrderStatus.PENDING: "Pending",
+            OrderStatus.SHIPPED: "Shipped",
+            OrderStatus.CANCELLED: "Cancelled"
+        }
+
+        status_count_map = {status: count for status, count in rows}
+
+        labels = []
+        percentages = []
+        for status in status_order:
+            count = status_count_map.get(status, 0)
+            percent = round((count / total_orders) * 100, 2)
+            labels.append(status_name_map.get(status, str(status)))
+            percentages.append(percent)
+
+        return {"labels": labels, "percentages": percentages}
+
+    def top_selling_products(self, seller_id: int, limit: int = 10) -> Dict[str, List]:
+        rows = (
+            self.db.query(
+                Product.id,
+                Product.sku,
+                func.coalesce(func.sum(OrderItem.quantity), 0).label("total_sold")
+            )
+            .join(OrderItem, OrderItem.product_id == Product.id)
+            .filter(OrderItem.seller_id == seller_id)
+            .group_by(Product.id, Product.sku)
+            .order_by(desc(func.sum(OrderItem.quantity)))
+            .limit(limit)
+            .all()
+        )
+
+        labels = [sku for _, sku, _ in rows]
+        data = [int(total_sold) for _, _, total_sold in rows]
+        return {"labels": labels, "units_sold": data}
+
+    def coupon_usage(self, seller_id: int, limit: int = 5) -> Dict[str, List]:
+        rows = (
+            self.db.query(
+                Coupon.id,
+                Coupon.coupon_code,
+                func.coalesce(func.count(Order.id), 0).label("usage")
+            )
+            .outerjoin(Order, Order.coupon_id == Coupon.id)
+            .filter(Coupon.user_id == seller_id)
+            .group_by(Coupon.id, Coupon.coupon_code)
+            .order_by(desc(func.count(Order.id)))
+            .limit(limit)
+            .all()
+        )
+
+        labels = [coupon_code for _, coupon_code, _ in rows]
+        data = [int(usage) for _, _, usage in rows]
+        return {"labels": labels, "usage": data}
+
+    def low_stock_items(self, seller_id: int, limit: int = 5) -> List[Dict[str, Any]]:
+        low_stock_products = self.db.query(
+            Product.id, Product.name, Product.sku, Product.stock
+        ).filter(Product.seller_id == seller_id, Product.stock < 10).order_by(Product.stock.asc()).limit(limit).all()
+
+        return [{"product_id": pid, "product_name": name, "sku": sku, "stock": int(stock)} for pid, name, sku, stock in low_stock_products]
+
+    def product_performance(self, seller_id: int, limit: int = 5) -> List[Dict[str, Any]]:
+        results = (
+            self.db.query(
+                Product.id,
+                Product.name,
+                Product.sku,
+                Product.stock,
+                Product.status,
+                func.coalesce(func.sum(OrderItem.quantity), 0).label("units_sold")
+            )
+            .outerjoin(OrderItem, Product.id == OrderItem.product_id)
+            .filter(Product.seller_id == seller_id)
+            .group_by(Product.id)
+            .order_by(desc(func.coalesce(func.sum(OrderItem.quantity), 0)))
+            .limit(limit)
+            .all()
+        )
+
+        return [
+            {
+                "product_id": r.id,
+                "product_name": r.name,
+                "sku": r.sku,
+                "units_sold": int(r.units_sold),
+                "stock": int(r.stock),
+                "approval_status": r.status
+            }
+            for r in results
+        ]
