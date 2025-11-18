@@ -86,6 +86,7 @@ class ProductResponse(BaseModel):
     seller_id: int
     created_at: datetime
     updated_at: Optional[datetime] = None
+    average_rating: Optional[float] = None
 
     class Config:
         orm_mode = True
