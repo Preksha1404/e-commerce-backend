@@ -81,14 +81,15 @@ async def update_seller(
 
 
 @router.patch("/{seller_id}/status", response_model=SellerResponse)
-def update_seller_status(
+async def update_seller_status(
     seller_id: int,
     status: str,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
     """🔹 Change seller active/inactive status."""
-    return SellerService.update_seller_status(db, seller_id, status, current_user)
+    return await SellerService.update_seller_status(db, seller_id, status, current_user, background_tasks)
 
 
 # ----------------- BLOCK / UNBLOCK SELLER (Admin only) -----------------

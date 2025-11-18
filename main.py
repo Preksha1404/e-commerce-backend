@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from fastapi.requests import Request
 import os
 from src.api.endpoints import categories
+from fastapi.staticfiles import StaticFiles
 
  
 
@@ -37,6 +38,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Serve static files publicly
+app.mount("/static", StaticFiles(directory="src/static"), name="static")
 
 @app.options("/{rest_of_path:path}")
 async def preflight_handler(request: Request, rest_of_path: str):

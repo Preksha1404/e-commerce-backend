@@ -3,7 +3,7 @@ from fastapi import HTTPException, UploadFile, status, BackgroundTasks
 from fastapi.responses import JSONResponse
 from typing import List, Optional
 import os
-from src.utils.email_templates import seller_welcome_template, seller_verification_template
+from src.utils.email_templates import seller_welcome_template, seller_verification_template, seller_account_approved_template
 from src.services.email_service import send_email
 from src.models.users import User
 from src.schemas.users import SellerCreate, SellerUpdate
@@ -65,7 +65,7 @@ class SellerService:
         return new_seller
 
     @staticmethod
-    def update_seller_status(db: Session, seller_id: int, status: str, current_user: User):
+    async def update_seller_status(db: Session, seller_id: int, status: str, current_user: User, background_tasks):
         if current_user.role != "admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -84,12 +84,24 @@ class SellerService:
         if status == "approved":
             seller.is_active = True
             seller.is_blocked = False
+
+            subject, html = seller_account_approved_template(seller.full_name)
+
+            await send_email(
+                background_tasks,
+                to_email=seller.email,
+                subject=subject,
+                html_content=html
+            )
+
         elif status == "rejected":
             seller.is_active = False
             seller.is_blocked = True
+
         elif status == "pending":
             seller.is_active = False
             seller.is_blocked = False
+            
         else:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,

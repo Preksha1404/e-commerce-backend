@@ -10,21 +10,21 @@ def password_reset_template(email: str, token: str):
 
     html_content = f"""
     <html>
-      <body style="margin:0; padding:0; background-color:#0d0d0d; font-family:'Helvetica Neue', Arial, sans-serif; color:#f0f0f0;">
-        <div style="max-width:600px; margin:0 auto; background-color:#1a1a1a; border-radius:10px; overflow:hidden;">
-          <div style="background-color:#000000; padding:20px; text-align:center;">
-            <img src="https://i.postimg.cc/tCqfC2rQ/cartify-logo.png" alt="Cartify Logo" width="120" />
+      <body style="margin:0; padding:0; background-color:#EFEBE9; font-family:'Helvetica Neue', Arial, sans-serif; color:#7B5C52;">
+        <div style="max-width:600px; margin:0 auto; background-color:white; border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
+          <div style="background-color:#7B5C52; padding:20px; text-align:center;">
+            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" alt="Cartify Logo" width="120" />
           </div>
           <div style="padding:40px 30px; text-align:center;">
-            <h2 style="color:#ffffff;">Password Reset Request</h2>
-            <p style="color:#cccccc;">Click the button below to reset your password:</p>
+            <h2 style="color:#7B5C52;">Password Reset Request</h2>
+            <p>Click the button below to reset your password:</p>
             <a href="{reset_link}"
-              style="background:#ff6600;color:white;padding:12px 30px;border-radius:6px;text-decoration:none;display:inline-block;margin-top:10px;">
+              style="background:#7B5C52; color:white; padding:12px 30px; border-radius:6px; text-decoration:none; display:inline-block; margin-top:10px;">
               Reset Password
             </a>
-            <p style="color:#aaaaaa;margin-top:20px;">This link expires in {RESET_TOKEN_EXPIRE_MINUTES} minutes.</p>
+            <p style="margin-top:20px;">This link expires in {RESET_TOKEN_EXPIRE_MINUTES} minutes.</p>
           </div>
-          <div style="background:#000000; padding:20px; text-align:center; color:#888888; font-size:13px;">
+          <div style="background:#EFEBE9; padding:20px; text-align:center; color:#7B5C52; font-size:13px;">
             <p>© {datetime.now().year} Cartify. All rights reserved.</p>
           </div>
         </div>
@@ -36,32 +36,38 @@ def password_reset_template(email: str, token: str):
 
 def customer_welcome_template(full_name: str):
     subject = "Welcome to Cartify – Discover Your Perfect Find!"
+
     html_content = f"""
     <html>
-      <body style="margin:0; padding:0; background-color:#0d0d0d; font-family:'Helvetica Neue', Arial, sans-serif; color:#f0f0f0;">
-        <div style="max-width:600px; margin:0 auto; background-color:#1a1a1a; border-radius:10px; overflow:hidden;">
-          <div style="background-color:#000000; padding:20px; text-align:center;">
-            <img src="https://i.postimg.cc/tCqfC2rQ/cartify-logo.png" alt="Cartify Logo" width="120" />
+      <body style="margin:0; padding:0; background-color:#EFEBE9; font-family:'Helvetica Neue', Arial, sans-serif; color:#7B5C52;">
+        <div style="max-width:600px; margin:0 auto; background-color:white; border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
+          <div style="background-color:#7B5C52; padding:20px; text-align:center;">
+            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" alt="Cartify Logo" width="120" />
           </div>
+
           <div style="padding:40px 30px 20px 30px; text-align:center;">
-            <h1 style="color:#ffffff; font-size:28px;">Welcome to <span style="color:#ff6600;">Cartify!</span></h1>
-            <p style="color:#cccccc; font-size:16px;">Hi <strong>{full_name}</strong>, we’re thrilled to have you with us!</p>
+            <h1 style="color:#7B5C52; font-size:28px;">Welcome to <strong>Cartify!</strong></h1>
+            <p style="font-size:16px;">Hi <strong>{full_name}</strong>, we’re thrilled to have you with us!</p>
           </div>
+
           <div style="padding:0 30px 20px 30px;">
-            <ul style="color:#dddddd; line-height:1.8;">
+            <ul style="line-height:1.8; color:#7B5C52;">
               <li>🛍️ Explore curated collections of trending products.</li>
-              <li>💸 Enjoy exclusive discounts and limited-time offers.</li>
+              <li>💸 Enjoy exclusive discounts and offers.</li>
               <li>⚡ Experience fast delivery and secure checkout.</li>
             </ul>
           </div>
+
           <div style="text-align:center; padding:30px;">
-            <a href="{FRONTEND_URL}" style="background-color:#ff6600;color:#ffffff;padding:12px 30px;border-radius:6px;text-decoration:none;font-size:16px;font-weight:bold;">
+            <a href="{FRONTEND_URL}"
+              style="background-color:#7B5C52; color:white; padding:12px 30px; border-radius:6px; text-decoration:none; font-size:16px; font-weight:bold;">
               Shop Now
             </a>
           </div>
-          <div style="background-color:#000000; padding:20px; text-align:center; font-size:13px; color:#888888;">
-            <p>Need help? <a href="{FRONTEND_URL}/contact" style="color:#ff6600; text-decoration:none;">Contact our support team</a></p>
-            <p style="margin-top:10px;">© {datetime.now().year} Cartify. All rights reserved.</p>
+
+          <div style="background-color:#EFEBE9; padding:20px; text-align:center; font-size:13px; color:#7B5C52;">
+            <p>Need help? <a href="{FRONTEND_URL}/contact" style="color:#7B5C52; text-decoration:underline;">Contact our support team</a></p>
+            <p>© {datetime.now().year} Cartify. All rights reserved.</p>
           </div>
         </div>
       </body>
@@ -72,62 +78,74 @@ def customer_welcome_template(full_name: str):
 
 def seller_welcome_template(full_name: str):
     subject = "Welcome to Cartify – Seller Account Under Verification"
+
     html_content = f"""
     <html>
-      <body style="margin:0; padding:0; background-color:#0d0d0d; font-family:'Helvetica Neue', Arial, sans-serif; color:#f0f0f0;">
-        <div style="max-width:600px; margin:0 auto; background-color:#1a1a1a; border-radius:10px; overflow:hidden;">
-          <div style="background-color:#000000; padding:20px; text-align:center;">
-            <img src="https://i.postimg.cc/tCqfC2rQ/cartify-logo.png" alt="Cartify Logo" width="120" />
+      <body style="margin:0; padding:0; background-color:#EFEBE9; font-family:'Helvetica Neue', Arial, sans-serif; color:#7B5C52;">
+        <div style="max-width:600px; margin:0 auto; background-color:white; border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
+          
+          <div style="background-color:#7B5C52; padding:20px; text-align:center;">
+            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" width="120" />
           </div>
+
           <div style="padding:40px 30px 20px 30px; text-align:center;">
-            <h1 style="color:#ffffff; font-size:28px;">Welcome to <span style="color:#ff6600;">Cartify Sellers!</span></h1>
-            <p style="color:#cccccc; font-size:16px;">Hi <strong>{full_name}</strong>, your seller account is created and currently under verification.</p>
+            <h1 style="color:#7B5C52; font-size:28px;">Welcome to <strong>Cartify Sellers!</strong></h1>
+            <p style="font-size:16px;">Hi <strong>{full_name}</strong>, your seller account is created and under verification.</p>
           </div>
+
           <div style="padding:0 30px 20px 30px;">
-            <ul style="color:#dddddd; line-height:1.8;">
+            <ul style="line-height:1.8;">
               <li>🔍 Our team will verify your business details.</li>
               <li>✅ You’ll get a confirmation email once approved.</li>
               <li>⏳ If not verified within 15 days, please contact us.</li>
             </ul>
           </div>
+
           <div style="text-align:center; padding:30px;">
-            <a href="{FRONTEND_URL}/seller/login" style="background-color:#ff6600;color:#ffffff;padding:12px 30px;border-radius:6px;text-decoration:none;font-size:16px;font-weight:bold;">
+            <a href="{FRONTEND_URL}/seller/login"
+              style="background-color:#7B5C52; color:white; padding:12px 30px; border-radius:6px; text-decoration:none; font-size:16px; font-weight:bold;">
               Go to Seller Portal
             </a>
           </div>
-          <div style="background-color:#000000; padding:20px; text-align:center; font-size:13px; color:#888888;">
-            <p>Need help? <a href="{FRONTEND_URL}/contact" style="color:#ff6600; text-decoration:none;">Contact our support team</a></p>
-            <p style="margin-top:10px;">© {datetime.now().year} Cartify. All rights reserved.</p>
+
+          <div style="background-color:#EFEBE9; padding:20px; text-align:center; font-size:13px; color:#7B5C52;">
+            <p>Need help? <a href="{FRONTEND_URL}/contact" style="color:#7B5C52; text-decoration:underline;">Contact support</a></p>
+            <p>© {datetime.now().year} Cartify. All rights reserved.</p>
           </div>
+
         </div>
       </body>
     </html>
     """
     return subject, html_content
 
-
 def seller_verification_template(full_name: str, store_name: str, store_address: str, store_description: str):
     subject = "Your Seller Account is Under Verification"
+
     html_content = f"""
     <html>
-      <body style="margin:0; padding:0; background-color:#0d0d0d; font-family:'Helvetica Neue', Arial, sans-serif; color:#f0f0f0;">
-        <div style="max-width:600px; margin:0 auto; background-color:#1a1a1a; border-radius:10px; overflow:hidden;">
-          <div style="background-color:#000000; padding:20px; text-align:center;">
-            <img src="https://i.postimg.cc/tCqfC2rQ/cartify-logo.png" alt="Cartify Logo" width="120" />
+      <body style="margin:0;padding:0;background-color:#EFEBE9;font-family:'Helvetica Neue',Arial,sans-serif;color:#7B5C52;">
+        <div style="max-width:600px;margin:0 auto;background:white;border-radius:10px;overflow:hidden;border:1px solid #e0d6d3;">
+          
+          <div style="background-color:#7B5C52;padding:20px;text-align:center;">
+            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" width="120" />
           </div>
+
           <div style="padding:40px 30px;">
-            <h2 style="color:#ffffff;">Account Verification in Progress</h2>
-            <p>Dear <strong>{full_name}</strong>, your store details were recently updated and are now under verification.</p>
-            <ul style="color:#dddddd;">
+            <h2 style="color:#7B5C52;">Account Verification in Progress</h2>
+            <p>Dear <strong>{full_name}</strong>, your store details were recently updated and are under verification.</p>
+            <ul style="line-height:1.7;">
               <li><strong>Store Name:</strong> {store_name}</li>
               <li><strong>Address:</strong> {store_address}</li>
               <li><strong>Description:</strong> {store_description or "N/A"}</li>
             </ul>
-            <p style="margin-top:10px;">We’ll notify you once verification is complete.</p>
+            <p>We’ll notify you once verification is complete.</p>
           </div>
-          <div style="background-color:#000000; padding:20px; text-align:center; color:#888888; font-size:13px;">
+
+          <div style="background:#EFEBE9;padding:20px;text-align:center;color:#7B5C52;font-size:13px;">
             <p>© {datetime.now().year} Cartify. All rights reserved.</p>
           </div>
+
         </div>
       </body>
     </html>
@@ -135,47 +153,104 @@ def seller_verification_template(full_name: str, store_name: str, store_address:
     return subject, html_content
 
 def send_order_cancelled_email(user_email: str, user_name: str, order_id: int):
-    subject = f"Your Order #{order_id} Has Been Cancelled"
+    subject = f"Your Order Has Been Cancelled"
 
     html_content = f"""
     <html>
-    <body style="font-family: Arial, sans-serif; background-color:#f9f9f9; padding:20px;">
-        <div style="max-width:600px; margin:auto; background-color:#ffffff; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,0.1); overflow:hidden;">
-            <div style="background-color:#e63946; padding:20px; text-align:center; color:white;">
-                <h2 style="margin:0;">Order Cancellation Notice</h2>
+    <body style="font-family:Arial,sans-serif;background-color:#EFEBE9;padding:20px;color:#7B5C52;">
+        <div style="max-width:600px;margin:auto;background:white;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,0.08);overflow:hidden;border:1px solid #e0d6d3;">
+            
+            <div style="background-color:#7B5C52;padding:20px;text-align:center;color:white;">
+                <h2 style="margin:0;">Order Cancelled</h2>
             </div>
+
             <div style="padding:25px;">
                 <p style="font-size:16px;">Hi <strong>{user_name}</strong>,</p>
-                <p style="font-size:15px; color:#333;">
-                    We wanted to let you know that your order <strong>#{order_id}</strong> has been successfully
-                    <span style="color:#e63946; font-weight:600;">cancelled</span>.
-                </p>
-                <p style="font-size:15px; color:#333;">
-                    If you’ve already made a payment, don’t worry — your refund will be processed
-                    and credited back to your original payment method within <strong>15 business days</strong>.
-                </p>
-                <p style="font-size:15px; color:#333;">
-                    We’re sorry for the inconvenience. If you cancelled the order by mistake or have any concerns,
-                    please reach out to our support team, and we’ll be happy to assist you.
-                </p>
-                <div style="margin-top:30px; text-align:center;">
-                    <a href="https://yourwebsite.com/orders/{order_id}" 
-                       style="background-color:#457b9d; color:white; padding:12px 24px; text-decoration:none; border-radius:6px;">
+                <p>Your order <strong>#{order_id}</strong> has been successfully cancelled.</p>
+                <p>If paid already, your refund will be processed within <strong>15 business days</strong>.</p>
+                <p>Contact our support team if this was a mistake.</p>
+
+                <div style="margin-top:30px;text-align:center;">
+                    <a href="{FRONTEND_URL}/orders/{order_id}"
+                       style="background-color:#7B5C52;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;">
                        View Order Details
                     </a>
                 </div>
             </div>
-            <div style="background-color:#f1f1f1; padding:15px; text-align:center; font-size:13px; color:#555;">
-                <p>Thank you for shopping with <strong>YourStore</strong>.</p>
-                <p>If you have any questions, contact us at 
-                   <a href="mailto:support@yourstore.com" style="color:#457b9d;">support@yourstore.com</a></p>
+
+            <div style="background-color:#EFEBE9;padding:15px;text-align:center;font-size:13px;color:#7B5C52;">
+                <p>Thank you for shopping with <strong>Cartify</strong>.</p>
+                <p>Contact: <a href="mailto:support@cartify.com" style="color:#7B5C52;text-decoration:underline;">support@cartify.com</a></p>
             </div>
+
         </div>
     </body>
     </html>
     """
 
-    return {
-        "subject": subject,
-        "html_content": html_content
-    }
+    return {"subject": subject, "html_content": html_content}
+
+def seller_account_approved_template(full_name: str):
+    subject = "Your Seller Account Has Been Approved! 🎉"
+
+    html_content = f"""
+    <html>
+      <body style="margin:0; padding:0; background-color:#EFEBE9; 
+                   font-family:'Helvetica Neue', Arial, sans-serif; color:#7B5C52;">
+
+        <div style="max-width:600px; margin:0 auto; background-color:white; 
+                    border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
+
+          <!-- Header -->
+          <div style="background-color:#7B5C52; padding:20px; text-align:center;">
+            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" 
+                 alt="Cartify Logo" width="120" />
+          </div>
+
+          <!-- Main Content -->
+          <div style="padding:40px 30px; text-align:center;">
+            <h1 style="color:#7B5C52; font-size:28px;">Welcome Aboard, Seller! 🎉</h1>
+            <p style="font-size:16px;">
+              Hi <strong>{full_name}</strong>, we’re excited to inform you that your seller
+              account has been <strong>approved</strong>!
+            </p>
+
+            <p style="font-size:15px; margin-top:20px;">
+              Your account is now active, and you can start building your business on Cartify.
+            </p>
+
+            <ul style="text-align:left; line-height:1.8; margin-top:20px; color:#7B5C52;">
+              <li>🏬 Add and customize your store details</li>
+              <li>📦 Upload products with images, variations & pricing</li>
+              <li>📊 Access your seller dashboard & analytics</li>
+              <li>🚚 Start receiving customer orders</li>
+            </ul>
+
+            <div style="margin-top:30px;">
+              <a href="{FRONTEND_URL}/seller/dashboard"
+                 style="background-color:#7B5C52; color:white; padding:12px 28px; 
+                        border-radius:6px; text-decoration:none; font-size:16px; 
+                        font-weight:bold;">
+                Go to Seller Dashboard
+              </a>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div style="background-color:#EFEBE9; padding:20px; text-align:center; 
+                      font-size:13px; color:#7B5C52;">
+            <p>Need help? 
+              <a href="{FRONTEND_URL}/contact" 
+                 style="color:#7B5C52; text-decoration:underline;">
+                Contact our support team
+              </a>
+            </p>
+            <p>© {datetime.now().year} Cartify. All rights reserved.</p>
+          </div>
+
+        </div>
+      </body>
+    </html>
+    """
+
+    return subject, html_content
