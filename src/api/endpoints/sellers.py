@@ -2,27 +2,20 @@ from fastapi import (
     APIRouter,
     Depends,
     BackgroundTasks,
-    HTTPException,
-    status,
-    File,
-    Form,
-    UploadFile,
-    Path,
 )
 from sqlalchemy.orm import Session
-from typing import List, Optional
  
 from src.core.database import SessionLocal
 from src.models.users import User
-from src.models.products import Product
 from src.schemas.users import (
     SellerCreate,
     SellerUpdate,
     SellerResponse,
-    SellerResponses,
 )
-from src.utils.auth import get_current_active_user, require_admin
-from src.services.seller_service import SellerService, ProductService
+from src.utils.auth import get_current_active_user
+from src.services.seller_service import SellerService
+from src.services.email_service import send_email
+from src.utils.email_templates import user_block_status_template
 
 router = APIRouter(prefix="/sellers", tags=["Sellers"])
 
@@ -90,39 +83,40 @@ async def update_seller_status(
 ):
     """🔹 Change seller active/inactive status."""
     return await SellerService.update_seller_status(db, seller_id, status, current_user, background_tasks)
+ 
 
-
-# ----------------- BLOCK / UNBLOCK SELLER (Admin only) -----------------
-@router.patch(
-    "/{seller_id}/block-toggle",
-    dependencies=[Depends(require_admin)],
-    summary="Toggle block/unblock status for a seller (Admin only)",
-)
-def toggle_seller_block_status(
-    seller_id: int = Path(..., ge=1),
+@router.patch("/{seller_id}/toggle-block")
+async def toggle_seller_block(
+    seller_id: int,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
 ):
-    """🔒 Toggle block/unblock seller (Admin-only access)."""
-    seller = db.query(User).filter(User.id == seller_id, User.role == "seller").first()
+    """
+    Toggle (block/unblock) a seller — Admin-only access.
+    Sends an email notification after the action.
+    """
 
-    if not seller:
-        raise HTTPException(status_code=404, detail="Seller not found")
+    # Toggle block/unblock using service
+    seller = SellerService.toggle_seller_block(seller_id, db, current_user)
 
-    seller.is_blocked = not seller.is_blocked
-    db.commit()
-    db.refresh(seller)
+    # Template (re-using customer template)
+    subject, html_content = user_block_status_template(
+        full_name=seller.full_name or seller.username or "Seller",
+        is_blocked=seller.is_blocked
+    )
 
-    status_text = "blocked" if seller.is_blocked else "unblocked"
+    # Send email
+    await send_email(
+        background_tasks=background_tasks,
+        to_email=seller.email,
+        subject=subject,
+        html_content=html_content
+    )
 
     return {
         "id": seller.id,
         "email": seller.email,
-        "full_name": seller.full_name,
         "is_blocked": seller.is_blocked,
-        "status": status_text,
-        "message": f"Seller {seller.full_name} has been {status_text} successfully.",
+        "message": f"Seller has been {'blocked' if seller.is_blocked else 'unblocked'} and notified via email."
     }
-
-
-# ----------------- CLOUDINARY IMAGE UPLOAD -----------------
- 

@@ -274,117 +274,35 @@ class SellerService:
             "products": product_data
         }
 
-
-# ---------------- PRODUCT MANAGEMENT ----------------
-class ProductService:
     @staticmethod
-    def add_product(
-        db: Session,
-        name: str,
-        description: Optional[str],
-        price: float,
-        stock: int,
-        category_id: int,
-        current_user: User,
-        images: Optional[List[UploadFile]] = None,
-    ):
-        # ✅ Only sellers can add products
-        if current_user.role != "seller":
+    def toggle_seller_block(seller_id: int, db: Session, current_user: User):
+        """
+        Admin-only: Toggle seller block/unblock status.
+        """
+
+        # Only admin allowed
+        if current_user.role != "admin":
             raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to add products"
+                status_code=403,
+                detail="Only admin can block/unblock sellers."
             )
 
-        # ✅ Ensure the upload directory exists
-        upload_dir = "uploads"
-        os.makedirs(upload_dir, exist_ok=True)
-
-        # ✅ Handle uploaded images
-        image_paths = []
-        if images:
-            for image in images:
-                file_location = os.path.join(upload_dir, image.filename)
-                with open(file_location, "wb") as f:
-                    f.write(image.file.read())
-                image_paths.append(file_location)
-
-        # ✅ Create and save the new product
-        new_product = Product(
-            name=name,
-            description=description,
-            price=price,
-            stock=stock,
-            category_id=category_id,
-            seller_id=current_user.id,
-            images=image_paths,
-            is_featured=False,
+        seller = (
+            db.query(User)
+            .filter(User.id == seller_id, User.role == "seller")
+            .first()
         )
 
-        db.add(new_product)
+        if not seller:
+            raise HTTPException(
+                status_code=404,
+                detail="Seller not found"
+            )
+
+        # Toggle block/unblock
+        seller.is_blocked = not seller.is_blocked
+
         db.commit()
-        db.refresh(new_product)
+        db.refresh(seller)
 
-        return {
-            "message": "Product added successfully",
-            "product": {
-                "id": new_product.id,
-                "name": new_product.name,
-                "price": new_product.price,
-                "stock": new_product.stock,
-                "category_id": new_product.category_id,
-                "images": image_paths,
-            },
-        }
-    @staticmethod
-    def update_product(db: Session, seller_id: int, prod_id: int, current_user: User):
-        if current_user.id != seller_id or current_user.role != "seller":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to update products"
-            )
-
-        product = db.query(Product).filter(
-            Product.id == prod_id, Product.seller_id == seller_id
-        ).first()
-        if not product:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Product not found"
-            )
-
-        product.price = product.price + 10
-        db.commit()
-        db.refresh(product)
-        return {"message": "Product updated successfully", "product": product}
-
-    @staticmethod
-    def delete_product(db: Session, seller_id: int, prod_id: int, current_user: User):
-        if current_user.id != seller_id or current_user.role != "seller":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to delete products"
-            )
-
-        product = db.query(Product).filter(
-            Product.id == prod_id, Product.seller_id == seller_id
-        ).first()
-        if not product:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Product not found"
-            )
-
-        db.delete(product)
-        db.commit()
-        return {"message": "Product deleted successfully"}
-
-    @staticmethod
-    def get_all_products(db: Session, seller_id: int, current_user: User):
-        if current_user.id != seller_id or current_user.role != "seller":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to view products"
-            )
-
-        products = db.query(Product).filter(Product.seller_id == seller_id).all()
-        return {"seller_id": seller_id, "products": products}
+        return seller

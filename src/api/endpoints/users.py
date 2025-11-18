@@ -1,10 +1,12 @@
-from fastapi import APIRouter, Depends, BackgroundTasks
+from fastapi import APIRouter, Depends, BackgroundTasks, HTTPException
 from sqlalchemy.orm import Session
 from src.core.database import SessionLocal
 from src.models.users import User
 from src.schemas.users import UserCreate, UserUpdate, UserResponse
 from src.utils.auth import get_current_active_user
 from src.services.user_service import UserService
+from src.services.email_service import send_email
+from src.utils.email_templates import user_block_status_template
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -38,3 +40,40 @@ def update_user(
     current_user: User = Depends(get_current_active_user)
 ):
     return UserService.update_user(db, user_id, user_update, current_user)
+
+@router.patch("/{user_id}/toggle-block")
+async def toggle_customer_block(
+    user_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Toggle (block/unblock) a customer — Admin-only access.
+    Sends email notification to the user after the action.
+    """
+    # Toggle block/unblock status
+    user = UserService.toggle_customer_block(user_id, db, current_user)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Generate email subject & html content using template
+    subject, html_content = user_block_status_template(
+        full_name=user.full_name or user.username or "Customer",
+        is_blocked=user.is_blocked
+    )
+
+    # Send email using generic send_email function
+    await send_email(
+        background_tasks=background_tasks,
+        to_email=user.email,
+        subject=subject,
+        html_content=html_content
+    )
+
+    return {
+        "id": user.id,
+        "email": user.email,
+        "is_blocked": user.is_blocked,
+        "message": f"User has been {'blocked' if user.is_blocked else 'unblocked'} and notified via email."
+    }
