@@ -307,3 +307,65 @@ def seller_account_rejected_template(full_name: str):
     """
 
     return subject, html_content
+
+def user_block_status_template(full_name: str, is_blocked: bool):
+    if is_blocked:
+        subject = "⚠️ Your Cartify Account Has Been Restricted"
+
+        message_title = "⚠️ Account Access Restricted"
+        message_body = f"""
+            <p style="font-size:16px;">Dear <strong>{full_name}</strong>,</p>
+            <p>Your account has been <strong>temporarily blocked</strong> due to suspicious activity or a policy violation.</p>
+            <p>Please contact our support team for further assistance.</p>
+        """
+    else:
+        subject = "✅ Your Cartify Account Is Now Active"
+
+        message_title = "✅ Account Access Restored"
+        message_body = f"""
+            <p style="font-size:16px;">Dear <strong>{full_name}</strong>,</p>
+            <p>Your account has been <strong>successfully unblocked</strong>.</p>
+            <p>You can now log in and continue shopping without any issues.</p>
+        """
+
+    html_content = f"""
+    <html>
+      <body style="margin:0; padding:0; background-color:#EFEBE9; font-family:'Helvetica Neue', Arial, sans-serif; color:#7B5C52;">
+
+        <div style="max-width:600px; margin:0 auto; background-color:white; border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
+
+          <!-- Header -->
+          <div style="background-color:#7B5C52; padding:20px; text-align:center;">
+            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" width="120" />
+          </div>
+
+          <!-- Title -->
+          <div style="padding:40px 30px 20px 30px; text-align:center;">
+            <h1 style="color:#7B5C52; font-size:26px;">{message_title}</h1>
+          </div>
+
+          <!-- Body -->
+          <div style="padding:0 30px 20px 30px; line-height:1.7; font-size:15px;">
+            {message_body}
+          </div>
+
+          <!-- Button -->
+          <div style="text-align:center; padding:25px;">
+            <a href="{FRONTEND_URL}/login"
+              style="background-color:#7B5C52; color:white; padding:12px 30px; border-radius:6px; text-decoration:none; font-size:16px; font-weight:bold;">
+              Visit Cartify
+            </a>
+          </div>
+
+          <!-- Footer -->
+          <div style="background-color:#EFEBE9; padding:20px; text-align:center; font-size:13px; color:#7B5C52;">
+            <p>Need help? <a href="{FRONTEND_URL}/contact" style="color:#7B5C52; text-decoration:underline;">Contact Support</a></p>
+            <p>© {datetime.now().year} Cartify. All rights reserved.</p>
+          </div>
+
+        </div>
+      </body>
+    </html>
+    """
+
+    return subject, html_content
