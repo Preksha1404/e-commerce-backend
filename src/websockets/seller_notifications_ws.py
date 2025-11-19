@@ -1,4 +1,4 @@
-from fastapi import WebSocket, Query, Depends, APIRouter
+from fastapi import WebSocket, Query, APIRouter, Depends
 from src.websockets.connection_manager import manager
 from src.utils.auth import get_user_from_ws_token
 from src.core.database import get_db
@@ -8,27 +8,41 @@ router = APIRouter()
 
 @router.websocket("/ws/seller-notifications")
 async def seller_notifications_ws(
-    websocket: WebSocket, 
-    token: str = Query(...), 
+    websocket: WebSocket,
+    seller_id: int = Query(...),
     db: Session = Depends(get_db)
 ):
+    # Accept connection to access cookies
+    await websocket.accept()
+
+    print(websocket)
+    # Read token from HttpOnly cookie
+    token = websocket.cookies.get("access_token")
+    print(token)
+    
+    if not token:
+        await websocket.close(code=1008)
+        return
+
+    # Validate token
     try:
         user = await get_user_from_ws_token(token, db)
-    except Exception as e:
-        print("Token validation failed:", e)
+    except Exception:
         await websocket.close(code=1008)
         return
 
-    if user.role != "seller":
+    # Validate seller_id matches token owner
+    if user.role != "seller" or user.id != seller_id:
         await websocket.close(code=1008)
         return
 
-    await manager.connect(user.id, websocket)
+    # Connection is valid
+    await manager.connect(seller_id, websocket)
 
     try:
         while True:
-            await websocket.receive_text()  # just keep connection alive
-    except Exception as e:
-        print("WebSocket disconnected:", e)
+            await websocket.receive_text()
+    except:
+        pass
     finally:
-        manager.disconnect(user.id, websocket)
+        manager.disconnect(seller_id, websocket)
