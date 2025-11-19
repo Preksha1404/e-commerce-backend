@@ -35,3 +35,16 @@ def mark_as_read(
         raise HTTPException(404, "Notification not found")
 
     return {"message": "Notification marked as read"}
+
+@router.patch("/read/all")
+def mark_all_as_read(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    if current_user.role.value != "seller":
+        raise HTTPException(403, "Only sellers can read notifications")
+
+    service = NotificationService(db)
+    updated_count = service.mark_all_as_read(current_user.id)
+
+    return {"message": f"{updated_count} notifications marked as read"}

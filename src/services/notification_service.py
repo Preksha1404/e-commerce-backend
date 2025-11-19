@@ -35,3 +35,14 @@ class NotificationService:
             notification.is_read = True
             self.db.commit()
         return notification
+    
+    def mark_all_as_read(self, seller_id: int) -> int:
+        notifications = (
+            self.db.query(Notification)
+            .filter(Notification.seller_id == seller_id, Notification.is_read == False)
+            .all()
+        )
+        for notif in notifications:
+            notif.is_read = True
+        self.db.commit()
+        return len(notifications)
