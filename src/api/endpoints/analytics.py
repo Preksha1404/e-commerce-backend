@@ -5,7 +5,7 @@ from src.services.analytics_service import AnalyticsService
 from src.utils.auth import get_current_active_user
 from src.models.users import User
 
-router = APIRouter(prefix="/analytics", tags=["Analytics"])
+router = APIRouter(prefix="/analytics", tags=["Admin Analytics"])
 
 @router.get("/kpis")
 def get_kpi_cards(
