@@ -10,6 +10,8 @@ from src.utils.order_status import update_order_overall_status
 from src.services.email_service import send_email
 from src.utils.email_templates import send_order_cancelled_email
 from src.services.cart_service import _serialize_cart, clear_cart, get_or_create_cart
+from src.services.notification_service import NotificationService
+from src.websockets.connection_manager import manager
 
 class OrderService:
     def __init__(self, db: Session):
@@ -27,7 +29,7 @@ class OrderService:
             .all()
         )
 
-    def place_order(self, order_data: OrderCreateSchema, current_user: User) -> OrderResponseSchema:
+    async def place_order(self, order_data: OrderCreateSchema, current_user: User) -> OrderResponseSchema:
         # Validate address
         address = self.db.query(Address).filter(
             Address.id == order_data.address_id,
@@ -109,6 +111,37 @@ class OrderService:
         response.discount = discount
         response.subtotal = subtotal
         response.coupon_code = coupon.coupon_code if coupon else None
+
+        # Trigger Seller Notifications
+        notif_service = NotificationService(self.db)
+        seller_ids = set(item.seller_id for item in order_items)
+
+        product_map = {p.id: p.sku for p in self.db.query(Product).filter(Product.id.in_([i.product_id for i in order_items])).all()}
+
+        for seller_id in seller_ids:
+            # Create notification in DB
+            notification = notif_service.create_seller_notification(
+                seller_id=seller_id,
+                order_id=order.id,
+                payload={
+                    "order_id": order.id,
+                    "total_amount": order.total_amount,
+                    "items": [{"product_id": i.product_id, "sku": product_map.get(i.product_id), "quantity": i.quantity} for i in order_items if i.seller_id == seller_id]
+                }
+            )
+
+            # Send real-time notification via WebSocket
+            await manager.send_to_seller(
+                seller_id,
+                message={
+                    "type": "new_order",
+                    "order_id": order.id,
+                    "notification_id": notification.id,
+                    "payload": notification.payload,
+                    "created_at": str(notification.created_at)
+                }
+            )
+
         return response
 
     async def cancel_order(self, order_id: int, current_user: User, background_tasks=BackgroundTasks):
