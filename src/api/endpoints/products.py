@@ -32,9 +32,12 @@ def list_approved_products(
     ):
     products = (
             db.query(Product)
-            .filter(Product.is_active == True, Product.is_deleted == False)
+            .filter(Product.status == "approved", Product.is_active == True, Product.is_deleted == False)
             .all()
         )
+    service = ProductService(db, None)
+    for product in products:
+        product.average_rating = service.get_average_rating(product.id)
     return products
 
 @router.get("/category/{category_name}/", response_model=List[ProductResponse])
