@@ -1,5 +1,6 @@
 import os
 from datetime import datetime
+from typing import List, Dict, Optional
 
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 RESET_TOKEN_EXPIRE_MINUTES = os.getenv("RESET_TOKEN_EXPIRE_MINUTES")
@@ -7,6 +8,8 @@ RESET_TOKEN_EXPIRE_MINUTES = os.getenv("RESET_TOKEN_EXPIRE_MINUTES")
 def password_reset_template(email: str, token: str):
     reset_link = f"{FRONTEND_URL}/reset-password?token={token}"
     subject = "Password Reset"
+
+    frontend = FRONTEND_URL or "#"
 
     html_content = f"""
     <html>
@@ -185,6 +188,177 @@ def send_order_cancelled_email(user_email: str, user_name: str, order_id: int):
 
         </div>
     </body>
+    </html>
+    """
+
+    return {"subject": subject, "html_content": html_content}
+
+
+def _format_currency(amount: float) -> str:
+    return f"${amount:,.2f}"
+
+
+def _build_order_items_table(items: List[Dict[str, float]]) -> str:
+    if not items:
+        return """
+        <tr>
+            <td colspan="3" style="padding:12px;text-align:center;color:#999;">
+                No items were found in this order.
+            </td>
+        </tr>
+        """
+
+    rows = ""
+    for item in items:
+        rows += f"""
+        <tr>
+            <td style="padding:12px;border-bottom:1px solid #f0e7e4;">{item.get("name", "Item")}</td>
+            <td style="padding:12px;text-align:center;border-bottom:1px solid #f0e7e4;">{item.get("quantity", 1)}</td>
+            <td style="padding:12px;text-align:right;border-bottom:1px solid #f0e7e4;">{_format_currency(item.get("total_price", 0.0))}</td>
+        </tr>
+        """
+    return rows
+
+
+def send_order_confirmation_email(
+    user_name: str,
+    order_id: int,
+    total_amount: float,
+    payment_method: str,
+    items: List[Dict[str, float]],
+    shipping_address: str,
+    subtotal: float,
+    discount: float,
+    coupon_code: Optional[str] = None,
+):
+    subject = f"Your Cartify Order #{order_id} is Confirmed"
+    items_html = _build_order_items_table(items)
+
+    coupon_text = coupon_code if coupon_code else "Not applied"
+    discount_text = _format_currency(discount if discount else 0.0)
+
+    html_content = f"""
+    <html>
+      <body style="margin:0; padding:0; background-color:#EFEBE9; font-family:'Helvetica Neue', Arial, sans-serif; color:#7B5C52;">
+        <div style="max-width:640px; margin:0 auto; background-color:white; border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
+          <div style="background-color:#7B5C52; padding:20px; text-align:center;">
+            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" alt="Cartify Logo" width="120" />
+          </div>
+
+          <div style="padding:35px;">
+            <h2 style="margin-top:0;">Hi {user_name},</h2>
+            <p>Thank you for shopping with Cartify. Your order <strong>#{order_id}</strong> has been successfully placed.</p>
+
+            <div style="margin-top:25px;">
+              <h3 style="margin-bottom:10px;">Order Summary</h3>
+              <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                <thead>
+                  <tr style="background-color:#f9f4f2;">
+                    <th style="text-align:left; padding:12px;">Item</th>
+                    <th style="text-align:center; padding:12px;">Qty</th>
+                    <th style="text-align:right; padding:12px;">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items_html}
+                </tbody>
+              </table>
+            </div>
+
+            <div style="margin-top:25px; border-top:1px solid #f0e7e4; padding-top:20px; font-size:14px;">
+              <p><strong>Subtotal:</strong> {_format_currency(subtotal)}</p>
+              <p><strong>Discount:</strong> {discount_text}</p>
+              <p><strong>Coupon:</strong> {coupon_text}</p>
+              <p><strong>Payment Method:</strong> {payment_method}</p>
+              <p><strong>Grand Total:</strong> {_format_currency(total_amount)}</p>
+            </div>
+
+            <div style="margin-top:25px;">
+              <h3 style="margin-bottom:10px;">Shipping To</h3>
+              <p style="line-height:1.6;">{shipping_address}</p>
+            </div>
+
+            <div style="text-align:center; margin-top:30px;">
+              <a href="{FRONTEND_URL}/orders/{order_id}" style="background-color:#7B5C52; color:white; padding:12px 28px; border-radius:6px; text-decoration:none; font-weight:bold;">
+                Track Order
+              </a>
+            </div>
+          </div>
+
+          <div style="background-color:#EFEBE9; padding:20px; text-align:center; font-size:13px; color:#7B5C52;">
+            <p>Need help? <a href="{FRONTEND_URL}/contact" style="color:#7B5C52; text-decoration:underline;">Contact support</a></p>
+            <p>© {datetime.now().year} Cartify. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+
+    return {"subject": subject, "html_content": html_content}
+
+
+def send_order_delivered_email(
+    user_name: str,
+    order_id: int,
+    total_amount: float,
+    items: List[Dict[str, float]],
+    shipping_address: str,
+):
+    subject = f"Good news! Order #{order_id} has been delivered"
+    items_html = _build_order_items_table(items)
+
+    frontend = FRONTEND_URL or "#"
+
+    html_content = f"""
+    <html>
+      <body style="margin:0; padding:0; background-color:#EFEBE9; font-family:'Helvetica Neue', Arial, sans-serif; color:#7B5C52;">
+        <div style="max-width:640px; margin:0 auto; background-color:white; border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
+          <div style="background-color:#7B5C52; padding:20px; text-align:center;">
+            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" alt="Cartify Logo" width="120" />
+          </div>
+
+          <div style="padding:35px;">
+            <h2 style="margin-top:0;">Hi {user_name},</h2>
+            <p>Your order <strong>#{order_id}</strong> has been delivered successfully. We hope you enjoy your purchase!</p>
+
+            <div style="margin-top:25px;">
+              <h3 style="margin-bottom:10px;">Items Delivered</h3>
+              <table style="width:100%; border-collapse:collapse; font-size:14px;">
+                <thead>
+                  <tr style="background-color:#f9f4f2;">
+                    <th style="text-align:left; padding:12px;">Item</th>
+                    <th style="text-align:center; padding:12px;">Qty</th>
+                    <th style="text-align:right; padding:12px;">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items_html}
+                </tbody>
+              </table>
+            </div>
+
+            <div style="margin-top:25px; border-top:1px solid #f0e7e4; padding-top:20px; font-size:14px;">
+              <p><strong>Grand Total Paid:</strong> {_format_currency(total_amount)}</p>
+            </div>
+
+            <div style="margin-top:25px;">
+              <h3 style="margin-bottom:10px;">Delivered To</h3>
+              <p style="line-height:1.6;">{shipping_address}</p>
+            </div>
+
+            <div style="text-align:center; margin-top:30px;">
+              <a href="{frontend}/orders/{order_id}" style="background-color:#7B5C52; color:white; padding:12px 28px; border-radius:6px; text-decoration:none; font-weight:bold;">
+                View Order
+              </a>
+            </div>
+          </div>
+
+          <div style="background-color:#EFEBE9; padding:20px; text-align:center; font-size:13px; color:#7B5C52;">
+            <p>Would you like to tell us how we did? <a href="{frontend}/orders/{order_id}/review" style="color:#7B5C52; text-decoration:underline;">Share feedback</a></p>
+            <p>© {datetime.now().year} Cartify. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
     </html>
     """
 
