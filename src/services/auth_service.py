@@ -22,26 +22,40 @@ class AuthService:
         Returns: tuple (user, access_token, refresh_token)
         """
         user = db.query(User).filter(User.email == credentials.email).first()
-    
+
         if not user or not verify_pwd(credentials.password, user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        
+
         if user.role not in ["customer", "seller", "admin"]:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Not authorized to login here"
             )
-        
+
+        # Check if seller is inactive
+        if user.role == "seller" and not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your account is under approval process"
+            )
+
+        # Check if seller or customer is blocked
+        if user.role in ["seller", "customer"] and user.is_blocked:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Your account is blocked"
+            )
+
         access_token_expires = timedelta(hours=ACCESS_TOKEN_EXPIRE)
         access_token = create_access_token(
             data={
-                "id": user.id,        # include user ID
-                "email": user.email,  # store email
-                "role": user.role     # include role, e.g., 'seller' or 'user'
+                "id": user.id,
+                "email": user.email,
+                "role": user.role
             },
             expires_delta=access_token_expires
         )
@@ -55,13 +69,13 @@ class AuthService:
             },
             expires_delta=refresh_token_expires
         )
-        
+
         user.refresh_token = refresh_token
         db.commit()
         db.refresh(user)
 
         return user, access_token, refresh_token
-    
+
     @staticmethod
     def refresh_token(refresh_token: str, db: Session):
         """

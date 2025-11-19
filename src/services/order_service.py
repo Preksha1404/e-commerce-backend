@@ -307,7 +307,13 @@ class OrderService:
             "items": seller_items
         }
 
-    def update_order_item_status(self, order_id: int, item_id: int, new_status: OrderStatus, current_user: User):
+    def update_order_item_status(
+        self, 
+        order_id: int, 
+        item_id: int, 
+        new_status: OrderStatus, 
+        current_user: User
+    ):
         if current_user.role.value != "seller":
             raise HTTPException(status_code=403, detail="Only sellers can update item status")
 
@@ -325,6 +331,10 @@ class OrderService:
 
         if not order_item:
             raise HTTPException(status_code=404, detail="Item not found for this seller in this order")
+
+        # Prevent changes if order item is cancelled
+        if order_item.status == "cancelled":
+            raise HTTPException(status_code=400, detail="Cannot change status of a cancelled order item")
 
         # Restricted transitions
         if order_item.status in ["shipped", "delivered"] and new_status == "pending":
