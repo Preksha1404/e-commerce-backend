@@ -21,6 +21,8 @@ class AnalyticsService:
         last_month_end = current_month_start - timedelta(seconds=1)
 
         # Total Revenue
+        total_revenue = self.db.query(func.sum(Order.total_amount)).scalar() or 0
+
         current_revenue = self.db.query(func.sum(Order.total_amount)).filter(
             Order.created_at >= current_month_start
         ).scalar() or 0
@@ -83,7 +85,8 @@ class AnalyticsService:
 
         return {
             "totalRevenue": {
-                "totalRevenue": float(current_revenue),
+                "totalRevenue": float(total_revenue),
+                "currentMonthRevenue": float(current_revenue),
                 "lastMonthRevenue": float(last_revenue)
             },
             "totalOrders": {
@@ -211,12 +214,12 @@ class AnalyticsService:
         top_products = self.db.query(
             Product.id,
             Product.name,
-            Product.category,
+            Category.name,
             func.sum(OrderItem.quantity),
             func.sum(OrderItem.total_price)
-        ).join(OrderItem.order).filter(
+        ).join(OrderItem).join(Product.category).join(OrderItem.order).filter(
             Order.created_at >= one_year_ago
-        ).group_by(Product.id, Product.name, Product.category).order_by(
+        ).group_by(Product.id, Product.name, Category.name).order_by(
             desc(func.sum(OrderItem.quantity))
         ).limit(10).all()
 
@@ -232,12 +235,12 @@ class AnalyticsService:
         worst_products = self.db.query(
             Product.id,
             Product.name,
-            Product.category,
+            Category.name,
             func.sum(OrderItem.quantity),
             func.sum(OrderItem.total_price)
-        ).join(OrderItem.order).filter(
+        ).join(OrderItem).join(Product.category).join(OrderItem.order).filter(
             Order.created_at >= one_year_ago
-        ).group_by(Product.id, Product.name, Product.category).order_by(
+        ).group_by(Product.id, Product.name, Category.name).order_by(
             asc(func.sum(OrderItem.quantity))
         ).limit(10).all()
 
