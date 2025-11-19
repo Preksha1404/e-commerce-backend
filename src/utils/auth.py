@@ -36,6 +36,9 @@ def get_current_active_user(current_user: User = Depends(get_current_user)):
         )
     return current_user
 
+async def get_user_from_ws_token(token: str, db: Session):
+    token_data = verify_token(token)
+    return db.query(User).filter(User.email == token_data.email).first()
 
 def require_admin(current_user: User = Depends(get_current_active_user)):
     """

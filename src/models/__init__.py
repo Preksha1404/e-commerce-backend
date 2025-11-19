@@ -5,5 +5,6 @@ from src.models.addresses import Address
 from src.models.payments import Payment, PaymentStatus
 from src.models.coupons import Coupon
 from src.models.review import Review
+from src.models.notifications import Notification
 
-__all__ = ['User', 'UserRole', 'Product', 'Category', 'Cart', 'CartItem', 'Order', 'OrderItem', 'Address', 'Payment', 'PaymentStatus','Coupon', 'Review', 'ProductImage']
+__all__ = ['User', 'UserRole', 'Product', 'Category', 'Cart', 'CartItem', 'Order', 'OrderItem', 'Address', 'Payment', 'PaymentStatus','Coupon', 'Review', 'ProductImage', 'Notification']
