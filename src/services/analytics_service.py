@@ -339,31 +339,53 @@ class SellerAnalyticsService:
         )
 
         # Order counts
-        delivered_orders = int(
-            self.db.query(func.coalesce(func.count(Order.id), 0))
+        # Delivered orders
+        delivered_orders = (
+            self.db.query(func.count(func.distinct(Order.id)))
             .join(OrderItem, OrderItem.order_id == Order.id)
-            .filter(OrderItem.seller_id == seller_id, Order.status == OrderStatus.DELIVERED)
+            .filter(
+                OrderItem.seller_id == seller_id,
+                Order.payment_status == OrderPaymentStatus.PAID,
+                Order.status == OrderStatus.DELIVERED
+            )
             .scalar() or 0
         )
 
-        pending_orders = int(
-            self.db.query(func.coalesce(func.count(Order.id), 0))
+        # Pending orders
+        pending_orders = (
+            self.db.query(func.count(func.distinct(Order.id)))
             .join(OrderItem, OrderItem.order_id == Order.id)
-            .filter(OrderItem.seller_id == seller_id, Order.status == OrderStatus.PENDING)
+            .filter(
+                OrderItem.seller_id == seller_id,
+                Order.payment_status == OrderPaymentStatus.PAID,
+                Order.status == OrderStatus.PENDING
+            )
             .scalar() or 0
         )
 
-        total_orders = int(
-            self.db.query(func.coalesce(func.count(Order.id), 0))
+        # Total seller orders
+        total_orders = (
+            self.db.query(func.count(func.distinct(Order.id)))
             .join(OrderItem, OrderItem.order_id == Order.id)
-            .filter(OrderItem.seller_id == seller_id)
+            .filter(
+                OrderItem.seller_id == seller_id,
+                Order.payment_status == OrderPaymentStatus.PAID
+            )
             .scalar() or 0
         )
 
         # Pending shipments (OrderItem-level)
-        pending_shipments = int(
-            self.db.query(func.coalesce(func.count(OrderItem.id), 0))
-            .filter(OrderItem.seller_id == seller_id, OrderItem.status.in_([OrderStatus.PENDING, OrderStatus.SHIPPED]))
+        pending_shipments = (
+            self.db.query(func.count(OrderItem.id))
+            .join(Order, Order.id == OrderItem.order_id)
+            .filter(
+                OrderItem.seller_id == seller_id,
+                Order.payment_status == OrderPaymentStatus.PAID,
+                OrderItem.status.in_([
+                    OrderStatus.PENDING,
+                    OrderStatus.SHIPPED
+                ])
+            )
             .scalar() or 0
         )
 
