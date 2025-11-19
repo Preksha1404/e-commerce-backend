@@ -12,10 +12,6 @@ async def seller_notifications_ws(
     seller_id: int = Query(...),
     db: Session = Depends(get_db)
 ):
-    # Accept connection to access cookies
-    await websocket.accept()
-
-    print(websocket)
     # Read token from HttpOnly cookie
     token = websocket.cookies.get("access_token")
     print(token)
