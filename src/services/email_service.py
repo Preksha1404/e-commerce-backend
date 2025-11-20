@@ -3,6 +3,7 @@ from sendgrid import SendGridAPIClient
 from sendgrid.helpers.mail import Mail
 import os
 from dotenv import load_dotenv
+from typing import Optional
 
 load_dotenv()
 
@@ -10,7 +11,7 @@ SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY")
 MAIL_FROM = os.getenv("MAIL_FROM")
 
 async def send_email(
-    background_tasks: BackgroundTasks,
+    background_tasks: Optional[BackgroundTasks],
     to_email: str,
     subject: str,
     html_content: str,
@@ -32,4 +33,7 @@ async def send_email(
         except Exception as e:
             print("SendGrid Error:", e)
 
-    background_tasks.add_task(send)
+    if background_tasks is not None:
+        background_tasks.add_task(send)
+    else:
+        send()

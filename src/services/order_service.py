@@ -5,10 +5,14 @@ from src.models.products import Product
 from src.models.addresses import Address
 from src.models.users import User
 from src.schemas.orders import OrderCreateSchema, OrderResponseSchema
-from typing import List
+from typing import List, Optional
 from src.utils.order_status import update_order_overall_status
 from src.services.email_service import send_email
-from src.utils.email_templates import send_order_cancelled_email
+from src.utils.email_templates import (
+    send_order_cancelled_email,
+    send_order_confirmation_email,
+    send_order_delivered_email,
+)
 from src.services.cart_service import _serialize_cart, clear_cart, get_or_create_cart
 from src.services.notification_service import NotificationService
 from src.websockets.connection_manager import manager
@@ -29,7 +33,12 @@ class OrderService:
             .all()
         )
 
-    async def place_order(self, order_data: OrderCreateSchema, current_user: User) -> OrderResponseSchema:
+    async def place_order(
+        self,
+        order_data: OrderCreateSchema,
+        current_user: User,
+        background_tasks: Optional[BackgroundTasks] = None,
+    ) -> OrderResponseSchema:
         # Validate address
         address = self.db.query(Address).filter(
             Address.id == order_data.address_id,
@@ -47,13 +56,14 @@ class OrderService:
 
         # Compute totals with coupon
         cart_out = _serialize_cart(self.db, cart, coupon=coupon)
+        cart_items = list(cart_out.items)
         discount = cart_out.discount
         subtotal = cart_out.subtotal
         total_amount = cart_out.total
 
         # Prepare order items from cart
         order_items = []
-        for item in cart_out.items:
+        for item in cart_items:
             product = self.db.query(Product).filter(Product.id == item.product_id).first()
             if not product:
                 raise HTTPException(status_code=404, detail=f"Product ID {item.product_id} not found")
@@ -142,9 +152,25 @@ class OrderService:
                 }
             )
 
+        await self._trigger_order_confirmation_email(
+            order=order,
+            user=current_user,
+            address=address,
+            cart_items=cart_items,
+            subtotal=subtotal,
+            discount=discount,
+            background_tasks=background_tasks,
+            coupon_code=response.coupon_code,
+        )
+
         return response
 
-    async def cancel_order(self, order_id: int, current_user: User, background_tasks=BackgroundTasks):
+    async def cancel_order(
+        self,
+        order_id: int,
+        current_user: User,
+        background_tasks: Optional[BackgroundTasks] = None,
+    ):
         if current_user.role.value != "customer":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
@@ -307,17 +333,21 @@ class OrderService:
             "items": seller_items
         }
 
-    def update_order_item_status(
-        self, 
-        order_id: int, 
-        item_id: int, 
-        new_status: OrderStatus, 
-        current_user: User
+    async def update_order_item_status(
+        self,
+        order_id: int,
+        item_id: int,
+        new_status: OrderStatus,
+        current_user: User,
+        background_tasks: Optional[BackgroundTasks] = None,
     ):
         if current_user.role.value != "seller":
             raise HTTPException(status_code=403, detail="Only sellers can update item status")
 
         # Include product load
+        order = self.db.query(Order).filter(Order.id == order_id).first()
+        previous_status = order.status if order else None
+
         order_item = (
             self.db.query(OrderItem)
             .options(selectinload(OrderItem.product))
@@ -348,4 +378,113 @@ class OrderService:
         self.db.commit()
 
         updated_order = update_order_overall_status(order_id, self.db)
+
+        if (
+            updated_order
+            and updated_order.status == OrderStatus.DELIVERED
+            and previous_status != OrderStatus.DELIVERED
+        ):
+            await self._trigger_order_delivered_email(
+                order_id=updated_order.id,
+                background_tasks=background_tasks,
+            )
+
         return updated_order
+
+    def _format_shipping_address(self, address: Address) -> str:
+        if not address:
+            return "Not provided"
+
+        parts = [
+            address.full_name,
+            address.address_line_1,
+            address.address_line_2,
+            f"{address.city}, {address.state} {address.postal_code}",
+            address.country,
+            f"Phone: {address.phone_number}",
+        ]
+
+        return ", ".join([part.strip() for part in parts if part and part.strip()])
+
+    async def _trigger_order_confirmation_email(
+        self,
+        order: Order,
+        user: User,
+        address: Address,
+        cart_items,
+        subtotal: float,
+        discount: float,
+        background_tasks: Optional[BackgroundTasks],
+        coupon_code: Optional[str],
+    ):
+        iterable_items = cart_items or []
+        item_summary = [
+            {
+                "name": getattr(item, "name", "Item"),
+                "quantity": getattr(item, "quantity", 1),
+                "total_price": getattr(item, "line_total", 0.0),
+            }
+            for item in iterable_items
+        ]
+
+        email_payload = send_order_confirmation_email(
+            user_name=user.full_name or user.email,
+            order_id=order.id,
+            total_amount=order.total_amount,
+            payment_method=order.payment_method or "Not provided",
+            items=item_summary,
+            shipping_address=self._format_shipping_address(address),
+            subtotal=subtotal,
+            discount=discount,
+            coupon_code=coupon_code,
+        )
+
+        await send_email(
+            background_tasks,
+            to_email=user.email,
+            subject=email_payload["subject"],
+            html_content=email_payload["html_content"],
+        )
+
+    async def _trigger_order_delivered_email(
+        self,
+        order_id: int,
+        background_tasks: Optional[BackgroundTasks],
+    ):
+        detailed_order = (
+            self.db.query(Order)
+            .options(
+                selectinload(Order.items).selectinload(OrderItem.product),
+                selectinload(Order.address),
+                selectinload(Order.user),
+            )
+            .filter(Order.id == order_id)
+            .first()
+        )
+
+        if not detailed_order or not detailed_order.user:
+            return
+
+        item_summary = [
+            {
+                "name": item.product.name if item.product else f"Product #{item.product_id}",
+                "quantity": item.quantity,
+                "total_price": item.total_price,
+            }
+            for item in detailed_order.items
+        ]
+
+        email_payload = send_order_delivered_email(
+            user_name=detailed_order.user.full_name or detailed_order.user.email,
+            order_id=detailed_order.id,
+            total_amount=detailed_order.total_amount,
+            items=item_summary,
+            shipping_address=self._format_shipping_address(detailed_order.address),
+        )
+
+        await send_email(
+            background_tasks,
+            to_email=detailed_order.user.email,
+            subject=email_payload["subject"],
+            html_content=email_payload["html_content"],
+        )
