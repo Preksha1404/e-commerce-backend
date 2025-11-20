@@ -32,7 +32,12 @@ class NotificationService:
             .first()
         )
         if notification:
+
+            if notification.is_read:
+                return notification
+            
             notification.is_read = True
+
             self.db.commit()
         return notification
     

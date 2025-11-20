@@ -3,4 +3,4 @@ __pycache__/
 myenv
 *.pyc
 /data/scraped_html
-/data/scraped_html_flipkart
+/data/scraped_products_html

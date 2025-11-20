@@ -122,35 +122,48 @@ class OrderService:
         response.subtotal = subtotal
         response.coupon_code = coupon.coupon_code if coupon else None
 
-        # Trigger Seller Notifications
-        notif_service = NotificationService(self.db)
-        seller_ids = set(item.seller_id for item in order_items)
+        # Trigger Seller Notifications ONLY IF PAYMENT SUCCEEDED
+        if order.payment_status == PaymentStatus.PAID:
+            notif_service = NotificationService(self.db)
+            seller_ids = set(item.seller_id for item in order_items)
 
-        product_map = {p.id: p.sku for p in self.db.query(Product).filter(Product.id.in_([i.product_id for i in order_items])).all()}
+            product_map = {
+                p.id: p.sku
+                for p in self.db.query(Product).filter(
+                    Product.id.in_([i.product_id for i in order_items])
+                ).all()
+            }
 
-        for seller_id in seller_ids:
-            # Create notification in DB
-            notification = notif_service.create_seller_notification(
-                seller_id=seller_id,
-                order_id=order.id,
-                payload={
-                    "order_id": order.id,
-                    "total_amount": order.total_amount,
-                    "items": [{"product_id": i.product_id, "sku": product_map.get(i.product_id), "quantity": i.quantity} for i in order_items if i.seller_id == seller_id]
-                }
-            )
+            for seller_id in seller_ids:
+                # Create notification in DB
+                notification = notif_service.create_seller_notification(
+                    seller_id=seller_id,
+                    order_id=order.id,
+                    payload={
+                        "order_id": order.id,
+                        "total_amount": order.total_amount,
+                        "items": [
+                            {
+                                "product_id": i.product_id,
+                                "sku": product_map.get(i.product_id),
+                                "quantity": i.quantity
+                            }
+                            for i in order_items if i.seller_id == seller_id
+                        ]
+                    }
+                )
 
-            # Send real-time notification via WebSocket
-            await manager.send_to_seller(
-                seller_id,
-                message={
-                    "type": "new_order",
-                    "order_id": order.id,
-                    "notification_id": notification.id,
-                    "payload": notification.payload,
-                    "created_at": str(notification.created_at)
-                }
-            )
+                # Send real-time notification via WebSocket
+                await manager.send_to_seller(
+                    seller_id,
+                    message={
+                        "type": "new_order",
+                        "order_id": order.id,
+                        "notification_id": notification.id,
+                        "payload": notification.payload,
+                        "created_at": str(notification.created_at)
+                    }
+                )
 
         await self._trigger_order_confirmation_email(
             order=order,
@@ -194,6 +207,9 @@ class OrderService:
         # Restore product stock
         order_items = self.db.query(OrderItem).filter(OrderItem.order_id == order.id).all()
         for item in order_items:
+
+            item.status = OrderStatus.CANCELLED  # also cancel order items
+
             product = self.db.query(Product).filter(Product.id == item.product_id).first()
             if product:
                 product.stock += item.quantity  # increase stock
