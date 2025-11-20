@@ -38,3 +38,4 @@ class User(Base):
     addresses = relationship("Address", back_populates="user", cascade="all, delete-orphan")
     coupons = relationship("Coupon", back_populates="user")
     notifications = relationship("src.models.notifications.Notification", back_populates="seller", cascade="all, delete-orphan")
+    wishlist_items = relationship("src.models.wishlist.Wishlist", back_populates="user", cascade="all, delete-orphan")
