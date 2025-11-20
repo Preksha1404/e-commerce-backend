@@ -23,7 +23,7 @@ router = APIRouter(prefix="/payments", tags=["Payments"])
 @router.post("/create-intent", response_model=PaymentIntentResponse, status_code=status.HTTP_201_CREATED)
 def create_payment_intent(
     payment_data: PaymentIntentCreate,
-    # current_user: User = Depends(get_current_active_user),  # COMMENTED OUT FOR TESTING
+    current_user: User = Depends(get_current_active_user),  # COMMENTED OUT FOR TESTING
     db: Session = Depends(get_db),
 ):
     """
@@ -31,18 +31,18 @@ def create_payment_intent(
     NOTE: Authentication temporarily disabled for testing.
     """
     # COMMENTED OUT FOR TESTING
-    # if current_user.role.value != "customer":
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="Only customers can create payment intents"
-    #     )
+    if current_user.role.value != "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only customers can create payment intents"
+        )
 
     # COMMENTED OUT FOR TESTING - Skip user verification
     # Verify order belongs to current user
     from src.models.orders import Order
     order = db.query(Order).filter(
         Order.id == payment_data.order_id,
-        # Order.user_id == current_user.id  # COMMENTED OUT FOR TESTING
+        Order.user_id == current_user.id  # COMMENTED OUT FOR TESTING
     ).first()
 
     if not order:
@@ -64,7 +64,7 @@ def create_payment_intent(
 @router.post("/confirm", response_model=PaymentConfirmResponse)
 def confirm_payment(
     confirm_data: PaymentConfirmRequest,
-    # current_user: User = Depends(get_current_active_user),  # COMMENTED OUT FOR TESTING
+    current_user: User = Depends(get_current_active_user),  # COMMENTED OUT FOR TESTING
     db: Session = Depends(get_db),
 ):
     """
@@ -72,11 +72,11 @@ def confirm_payment(
     NOTE: Authentication temporarily disabled for testing.
     """
     # COMMENTED OUT FOR TESTING
-    # if current_user.role.value != "customer":
-    #     raise HTTPException(
-    #         status_code=status.HTTP_403_FORBIDDEN,
-    #         detail="Only customers can confirm payments"
-    #     )
+    if current_user.role.value != "customer":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only customers can confirm payments"
+        )
 
     service = PaymentService(db)
     result = service.confirm_payment(confirm_data.payment_intent_id)
@@ -87,7 +87,7 @@ def confirm_payment(
 @router.get("/{payment_id}", response_model=PaymentResponse)
 def get_payment(
     payment_id: int,
-    # current_user: User = Depends(get_current_active_user),  # COMMENTED OUT FOR TESTING
+    current_user: User = Depends(get_current_active_user),  # COMMENTED OUT FOR TESTING
     db: Session = Depends(get_db),
 ):
     """
@@ -99,14 +99,14 @@ def get_payment(
 
     # COMMENTED OUT FOR TESTING
     # Verify payment belongs to current user (for customers)
-    # if current_user.role.value == "customer":
-    #     from src.models.orders import Order
-    #     order = db.query(Order).filter(Order.id == payment.order_id).first()
-    #     if not order or order.user_id != current_user.id:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_403_FORBIDDEN,
-    #             detail="Not authorized to view this payment"
-    #         )
+    if current_user.role.value == "customer":
+        from src.models.orders import Order
+        order = db.query(Order).filter(Order.id == payment.order_id).first()
+        if not order or order.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view this payment"
+            )
 
     return payment
 
@@ -114,7 +114,7 @@ def get_payment(
 @router.get("/order/{order_id}", response_model=PaymentResponse)
 def get_payment_by_order(
     order_id: int,
-    # current_user: User = Depends(get_current_active_user),  # COMMENTED OUT FOR TESTING
+    current_user: User = Depends(get_current_active_user),  # COMMENTED OUT FOR TESTING
     db: Session = Depends(get_db),
 ):
     """
@@ -132,14 +132,14 @@ def get_payment_by_order(
 
     # COMMENTED OUT FOR TESTING
     # Verify order belongs to current user (for customers)
-    # if current_user.role.value == "customer":
-    #     from src.models.orders import Order
-    #     order = db.query(Order).filter(Order.id == order_id).first()
-    #     if not order or order.user_id != current_user.id:
-    #         raise HTTPException(
-    #             status_code=status.HTTP_403_FORBIDDEN,
-    #             detail="Not authorized to view this payment"
-    #         )
+    if current_user.role.value == "customer":
+        from src.models.orders import Order
+        order = db.query(Order).filter(Order.id == order_id).first()
+        if not order or order.user_id != current_user.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view this payment"
+            )
 
     return payment
 
