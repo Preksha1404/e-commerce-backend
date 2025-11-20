@@ -28,6 +28,7 @@ app = FastAPI(lifespan=lifespan)
 
 origins = [
     "http://localhost:5173",
+    "http://localhost:4173",
     "https://ecommerce-eight-black.vercel.app",
 ]
 
