@@ -23,25 +23,22 @@ cloudinary.config(
 def list_products(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
-    ):
+):
+    """Admin only: List all products"""
     return ProductService(db, current_user).list_products()
 
 @router.get("/approved/", response_model=List[ProductResponse])
-def list_approved_products(
-    db: Session = Depends(get_db),
-    ):
-    products = (
-            db.query(Product)
-            .filter(Product.status == "approved", Product.is_active == True, Product.is_deleted == False)
-            .all()
-        )
-    service = ProductService(db, None)
-    for product in products:
-        product.average_rating = service.get_average_rating(product.id)
-    return products
+def list_approved_products(db: Session = Depends(get_db)):
+    """
+    Public: List approved products
+    """
+    return ProductService(db, None).list_approved_products()
 
 @router.get("/category/{category_name}/", response_model=List[ProductResponse])
 def get_products_by_category_name(category_name: str, db: Session = Depends(get_db)):
+    """
+    Get products by category name
+    """
     return ProductService(db, None).get_products_by_category_name(category_name)
 
 
@@ -93,7 +90,12 @@ def get_new_arrivals(
 
 
 @router.get("/sellers/{seller_id}/", response_model=List[ProductResponse])
-def get_seller_products(seller_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_active_user)):
+def get_seller_products(
+    seller_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Get products by seller ID"""
     return ProductService(db, current_user).get_seller_products(seller_id)
 
 
@@ -116,6 +118,7 @@ async def create_product(
 
 @router.get("/{product_id}/", response_model=ProductResponse)
 def get_product(product_id: int, db: Session = Depends(get_db)):
+    """Get single product by ID"""
     return ProductService(db, None).get_product(product_id)
 
 

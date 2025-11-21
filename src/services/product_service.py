@@ -1,7 +1,8 @@
-from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload, selectinload
+from sqlalchemy import func, desc
+from sqlalchemy.sql import func as sql_func
 from fastapi import HTTPException, status, UploadFile, Response
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Dict
 import cloudinary
 import cloudinary.uploader
 from src.models.products import Product, ProductImage
@@ -16,8 +17,56 @@ class ProductService:
         self.db = db
         self.current_user = current_user
 
+    # ==================== OPTIMIZATION HELPERS ====================
+    
+    def _base_product_query(self, eager_load: bool = True):
+        """
+        Base query with optional eager loading for images and category
+        Eager loaded product images and category
+        """
+        query = self.db.query(Product)
+        if eager_load:
+            query = query.options(
+                selectinload(Product.images),
+                joinedload(Product.category)
+            )
+        return query
+
+    def _attach_ratings_bulk(self, products: List[Product]) -> List[Product]:
+        """Efficiently attach ratings to multiple products in a single query"""
+        if not products:
+            return products
+        
+        product_ids = [p.id for p in products]
+        
+        # Single query to get all ratings instead of N queries
+        ratings = (
+            self.db.query(Review.product_id, func.avg(Review.rating).label('avg'))
+            .filter(Review.product_id.in_(product_ids))
+            .group_by(Review.product_id)
+            .all()
+        )
+        
+        ratings_map: Dict[int, float] = {r.product_id: float(r.avg) for r in ratings}
+        
+        for product in products:
+            product.average_rating = ratings_map.get(product.id)
+        
+        return products
+
+    def get_average_rating(self, product_id: int):
+        """Single product rating - kept for single product queries"""
+        avg_rating = (
+            self.db.query(func.avg(Review.rating))
+            .filter(Review.product_id == product_id)
+            .scalar()
+        )
+        return float(avg_rating) if avg_rating else None
+
+    # ==================== LIST PRODUCTS (ADMIN) ====================
+    
     def list_products(self):
-        # Only admin can view all products
+        """Admin only: List all products"""
         if not self.current_user or self.current_user.role != "admin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -25,19 +74,37 @@ class ProductService:
             )
 
         products = (
-            self.db.query(Product)
+            self._base_product_query()
             .filter(Product.is_deleted == False)
+            .order_by(Product.created_at.desc())
             .all()
         )
-        for product in products:
-            product.average_rating = self.get_average_rating(product.id)
-        return products
+        return self._attach_ratings_bulk(products)
 
+    # ==================== LIST APPROVED PRODUCTS ====================
+    
+    def list_approved_products(self):
+        """Public: List approved products"""
+        products = (
+            self._base_product_query()
+            .filter(
+                Product.status == "approved",
+                Product.is_active == True,
+                Product.is_deleted == False
+            )
+            .order_by(Product.created_at.desc())
+            .all()
+        )
+        return self._attach_ratings_bulk(products)
+
+    # ==================== SELLER PRODUCTS ====================
+    
     def get_seller_products(self, seller_id: int):
-        if self.current_user is None:
+        """Get seller's products"""
+        if not self.current_user or self.current_user.role != "seller":
             raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required"
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only sellers can view their products"
             )
 
         if self.current_user.role == "seller" and self.current_user.id != seller_id:
@@ -47,15 +114,131 @@ class ProductService:
             )
 
         products = (
-            self.db.query(Product)
+            self._base_product_query()
             .filter(Product.seller_id == seller_id, Product.is_deleted == False)
             .order_by(Product.created_at.desc())
             .all()
         )
-        for product in products:
-            product.average_rating = self.get_average_rating(product.id)
-        return products
+        return self._attach_ratings_bulk(products)
 
+    # ==================== GET SINGLE PRODUCT ====================
+    
+    def get_product(self, product_id: int):
+        """Get single product by ID"""
+        db_product = (
+            self._base_product_query()
+            .filter(Product.id == product_id, Product.is_deleted == False)
+            .first()
+        )
+        if not db_product:
+            raise HTTPException(status_code=404, detail="Product not found")
+        db_product.average_rating = self.get_average_rating(product_id)
+        return db_product
+
+    # ==================== CATEGORY PRODUCTS ====================
+    
+    def get_products_by_category_name(self, category_name: str):
+        """Get products by category name"""
+        category = self.db.query(Category).filter(Category.name.ilike(category_name)).first()
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+
+        products = (
+            self._base_product_query()
+            .filter(
+                Product.category_id == category.id,
+                Product.is_deleted == False,
+                Product.status == "approved",
+                Product.is_active == True
+            )
+            .order_by(Product.created_at.desc())
+            .all()
+        )
+        
+        if not products:
+            raise HTTPException(status_code=404, detail="No products found for this category")
+        
+        return self._attach_ratings_bulk(products)
+
+    # ==================== NEW ARRIVALS ====================
+    
+    def get_new_arrivals(self):
+        """Get latest 2 products per category - OPTIMIZED using window function"""
+        # Subquery with row_number() window function to rank products per category
+
+        row_num = (
+            sql_func.row_number()
+            .over(
+                partition_by=Product.category_id,
+                order_by=desc(Product.created_at)
+            )
+            .label('row_num')
+        )
+        
+        subq = (
+            self.db.query(Product.id, row_num)
+            .filter(
+                Product.is_deleted == False,
+                Product.status == "approved",
+                Product.is_active == True
+            )
+            .subquery()
+        )
+        
+        # Get product IDs where row_num <= 2 (top 2 per category)
+        product_ids = (
+            self.db.query(subq.c.id)
+            .filter(subq.c.row_num <= 2)
+            .all()
+        )
+        product_ids = [pid[0] for pid in product_ids]
+        
+        if not product_ids:
+            return []
+        
+        # Fetch full products with eager loading
+        products = (
+            self._base_product_query()
+            .filter(Product.id.in_(product_ids))
+            .order_by(Product.created_at.desc())
+            .all()
+        )
+        
+        return self._attach_ratings_bulk(products)
+
+    # ==================== SEARCH PRODUCTS ====================
+    
+    def search_products(self, query: str, status_filter: Optional[str] = None):
+        """Search products"""
+        base_query = (
+            self._base_product_query()
+            .filter(Product.is_deleted == False)
+        )
+        
+        is_admin = self.current_user and self.current_user.role == "admin"
+        if is_admin and status_filter:
+            base_query = base_query.filter(Product.status == status_filter)
+        elif not is_admin:
+            base_query = base_query.filter(
+                Product.status == "approved",
+                Product.is_active == True
+            )
+        
+        search_term = f"%{query}%"
+        products = (
+            base_query.filter(
+                (Product.name.ilike(search_term)) |
+                (Product.description.ilike(search_term)) |
+                (Product.sku.ilike(search_term))
+            )
+            .order_by(Product.created_at.desc())
+            .limit(100)  # Add reasonable limit for performance
+            .all()
+        )
+        return self._attach_ratings_bulk(products)
+
+    # ==================== CREATE PRODUCT ====================
+    
     async def create_product(
         self,
         name: str,
@@ -71,10 +254,7 @@ class ProductService:
         if self.current_user.role != "seller":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only sellers can create products")
 
-        # Process discount price
         discount_value = float(discount_price) if discount_price not in (None, "", "null") else None
-
-        # Generate SKU if not provided
         sku_value = sku.strip() if sku and sku.strip() else generate_simple_sku(name)
 
         db_product = Product(
@@ -96,7 +276,6 @@ class ProductService:
         self.db.commit()
         self.db.refresh(db_product)
 
-        # Upload images
         for index, image in enumerate(images, start=1):
             if not image.content_type.startswith("image/"):
                 raise HTTPException(status_code=400, detail=f"Invalid file type: {image.filename}")
@@ -118,41 +297,8 @@ class ProductService:
         self.db.refresh(db_product)
         return db_product
 
-    def get_average_rating(self, product_id: int):
-        avg_rating = (
-            self.db.query(func.avg(Review.rating))
-            .filter(Review.product_id == product_id)
-            .scalar()
-        )
-        return float(avg_rating) if avg_rating else None
-
-    def get_product(self, product_id: int):
-        db_product = (
-            self.db.query(Product)
-            .filter(Product.id == product_id, Product.is_deleted == False)
-            .first()
-        )
-        if not db_product:
-            raise HTTPException(status_code=404, detail="Product not found")
-        db_product.average_rating = self.get_average_rating(product_id)
-        return db_product
-
-    def get_products_by_category_name(self, category_name: str):
-        category = self.db.query(Category).filter(Category.name.ilike(category_name)).first()
-        if not category:
-            raise HTTPException(status_code=404, detail="Category not found")
-
-        products = (
-            self.db.query(Product)
-            .filter(Product.category_id == category.id, Product.is_deleted == False)
-            .all()
-        )
-        if not products:
-            raise HTTPException(status_code=404, detail="No products found for this category")
-        for product in products:
-            product.average_rating = self.get_average_rating(product.id)
-        return products
-
+    # ==================== UPDATE PRODUCT ====================
+    
     async def update_product(
         self,
         product_id: int,
@@ -178,7 +324,6 @@ class ProductService:
         if not db_product:
             raise HTTPException(status_code=404, detail="Product not found")
 
-        # Helper to clean invalid strings
         def clean_value(value):
             if value is None:
                 return None
@@ -188,12 +333,10 @@ class ProductService:
                     return None
             return value
 
-        # Clean inputs
         name = clean_value(name)
         description = clean_value(description)
         sku = clean_value(sku)
 
-        # Handle numerics safely
         try:
             price = float(price) if clean_value(price) is not None else None
         except (ValueError, TypeError):
@@ -214,11 +357,9 @@ class ProductService:
         except (ValueError, TypeError):
             category_id = None
 
-        # Keep boolean values as-is
         if isinstance(is_featured, str):
             is_featured = is_featured.lower() == "true"
 
-        # Update non-empty fields
         form_fields = {
             "name": name,
             "description": description,
@@ -233,11 +374,9 @@ class ProductService:
             if value is not None:
                 setattr(db_product, key, value)
 
-        # Handle image uploads
         if images:
-            # Delete existing images
             self.db.query(ProductImage).filter(ProductImage.product_id == product_id).delete()
-            self.db.flush()  # ensures delete is applied before inserting new ones
+            self.db.flush()
 
             for index, image in enumerate(images, start=1):
                 if not image.content_type.startswith("image/"):
@@ -260,23 +399,23 @@ class ProductService:
                 except Exception as e:
                     raise HTTPException(status_code=500, detail=f"Image upload failed: {str(e)}")
 
-        # Reset approval and activation
         db_product.status = "pending"
         db_product.is_active = False
 
-        # Commit once
         self.db.commit()
         self.db.refresh(db_product)
 
         db_product.images = (
-        self.db.query(ProductImage)
-        .filter(ProductImage.product_id == db_product.id)
-        .order_by(ProductImage.position)
-        .all()
+            self.db.query(ProductImage)
+            .filter(ProductImage.product_id == db_product.id)
+            .order_by(ProductImage.position)
+            .all()
         )
 
         return db_product
 
+    # ==================== DELETE PRODUCT ====================
+    
     def delete_product(self, product_id: int):
         db_product = self.db.query(Product).filter(Product.id == product_id).first()
 
@@ -292,15 +431,16 @@ class ProductService:
                 detail="Not authorized to delete this product"
             )
 
-        # Soft delete instead of actual delete
         db_product.is_deleted = True
-        db_product.is_active = False  # also deactivate product
+        db_product.is_active = False
 
         self.db.commit()
         self.db.refresh(db_product)
 
         return {"message": f"Product '{db_product.name}' marked as deleted successfully"}
 
+    # ==================== ADD STOCK ====================
+    
     def add_product_stock(self, product_id: int, stock_data: AddStockRequest):
         if self.current_user.role != "seller":
             raise HTTPException(status_code=403, detail="Only sellers can add stock")
@@ -318,6 +458,8 @@ class ProductService:
         self.db.refresh(product)
         return product
 
+    # ==================== UPDATE STATUS ====================
+    
     def update_product_status(self, product_id: int, status_value: str):
         if self.current_user.role != "admin":
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can update product status")
@@ -337,6 +479,8 @@ class ProductService:
         self.db.refresh(db_product)
         return db_product
 
+    # ==================== BULK UPLOAD ====================
+    
     def download_bulk_upload_template(self):
         template = generate_bulk_upload_template()
         return Response(
@@ -400,84 +544,3 @@ class ProductService:
         except Exception as e:
             msg = str(e).splitlines()[0] if str(e) else "Bulk upload failed"
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=msg)
-
-    def search_products(self, query: str, status_filter: Optional[str] = None):
-        """
-        Search products by name, description, or SKU.
-        Only returns approved and active products for customers.
-        Admins can filter by status.
-        """
-        # Base query
-        base_query = (
-            self.db.query(Product)
-            .filter(Product.is_deleted == False)
-        )
-        
-        # If user is admin and status filter is provided, use it
-        is_admin = self.current_user and self.current_user.role == "admin"
-        if is_admin and status_filter:
-            base_query = base_query.filter(Product.status == status_filter)
-        # If user is not admin, only show approved and active products
-        elif not is_admin:
-            base_query = base_query.filter(
-                Product.status == "approved",
-                Product.is_active == True
-            )
-        # If admin but no status filter, show all non-deleted products
-        
-        # Search in name, description, or SKU (case-insensitive)
-        search_term = f"%{query}%"
-        products = (
-            base_query.filter(
-                (Product.name.ilike(search_term)) |
-                (Product.description.ilike(search_term)) |
-                (Product.sku.ilike(search_term))
-            )
-            .order_by(Product.created_at.desc())
-            .all()
-        )
-        for product in products:
-            product.average_rating = self.get_average_rating(product.id)
-        return products
-
-    def get_new_arrivals(self):
-        """
-        Get the latest 2 products from each category.
-        Only returns approved and active products.
-        """
-        # Get all active categories
-        categories = (
-            self.db.query(Category)
-            .filter(Category.is_active == True)
-            .all()
-        )
-
-        new_arrivals = []
-
-        for category in categories:
-            # Base query for products in this category
-            base_query = (
-                self.db.query(Product)
-                .filter(
-                    Product.category_id == category.id,
-                    Product.is_deleted == False,
-                    Product.status == "approved",
-                    Product.is_active == True
-                )
-            )
-
-            # Get latest 2 products from this category
-            products = (
-                base_query
-                .order_by(Product.created_at.desc())
-                .limit(2)
-                .all()
-            )
-
-            new_arrivals.extend(products)
-
-        # Sort all products by created_at descending
-        new_arrivals.sort(key=lambda x: x.created_at, reverse=True)
-        for product in new_arrivals:
-            product.average_rating = self.get_average_rating(product.id)
-        return new_arrivals
