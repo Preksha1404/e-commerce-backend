@@ -26,9 +26,17 @@ class CouponService:
     
     def list_all_active_coupons(self):
         """
-        Returns all active coupons (admin + seller) for customers.
+        Returns all active coupons of admin for customers.
         """
-        return self.db.query(Coupon).filter(Coupon.coupon_status == "True").all()
+        coupons = (
+            self.db.query(Coupon)
+            .filter(Coupon.user_id == 1)
+            .filter(Coupon.coupon_status == True)
+            .limit(2)
+            .all()
+        )
+
+        return coupons
 
     def create_coupon(self, coupon_data: CouponCreate, current_user: User):
         if current_user.role not in ["admin", "seller"]:
