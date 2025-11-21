@@ -25,6 +25,13 @@ def list_coupons(
     service = CouponService(db)
     return service.list_coupons(current_user, role)
 
+@router.get("/active", response_model=list[CouponResponse])
+def list_all_active_coupons(
+    db: Session = Depends(get_db),
+):
+    service = CouponService(db)
+    return service.list_all_active_coupons()
+
 @router.post("/", response_model=CouponResponse)
 def create_new_coupon(
     coupon_data: CouponCreate,

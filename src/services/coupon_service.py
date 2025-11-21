@@ -23,6 +23,12 @@ class CouponService:
 
         else:
             raise HTTPException(status_code=400, detail="Invalid role")
+    
+    def list_all_active_coupons(self):
+        """
+        Returns all active coupons (admin + seller) for customers.
+        """
+        return self.db.query(Coupon).filter(Coupon.coupon_status == "True").all()
 
     def create_coupon(self, coupon_data: CouponCreate, current_user: User):
         if current_user.role not in ["admin", "seller"]:
