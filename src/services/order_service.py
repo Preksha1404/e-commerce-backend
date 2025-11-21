@@ -1,5 +1,5 @@
 from fastapi import HTTPException, status, BackgroundTasks
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, selectinload, joinedload
 from src.models.orders import Order, OrderItem, OrderStatus, PaymentStatus
 from src.models.products import Product
 from src.models.addresses import Address
@@ -22,12 +22,16 @@ class OrderService:
         self.db = db
 
     # ---------------- User Methods ---------------- #
-    def get_user_orders(self, current_user: User) -> List[Order]:
+    def get_user_orders(self, current_user: User):
         if current_user.role.value != "customer":
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
-        
+            raise HTTPException(status_code=403, detail="Not authorized")
+
         return (
             self.db.query(Order)
+            .options(
+                selectinload(Order.items).selectinload(OrderItem.product),
+                joinedload(Order.address),
+            )
             .filter(Order.user_id == current_user.id)
             .order_by(Order.created_at.desc())
             .all()
@@ -239,11 +243,20 @@ class OrderService:
         }
 
     # ---------------- Admin Method ---------------- #
-    def get_all_orders(self, current_user: User) -> List[Order]:
+    def get_all_orders(self, current_user: User):
         if current_user.role.value != "admin":
             raise HTTPException(status_code=403, detail="Not authorized")
 
-        return self.db.query(Order).order_by(Order.created_at.desc()).all()
+        return (
+            self.db.query(Order)
+            .options(
+                selectinload(Order.items).selectinload(OrderItem.product),
+                joinedload(Order.address),
+                joinedload(Order.user),
+            )
+            .order_by(Order.created_at.desc())
+            .all()
+        )
     
     # ---------------- Seller Methods ---------------- #
     def get_seller_orders(self, current_user: User) -> List[dict]:
