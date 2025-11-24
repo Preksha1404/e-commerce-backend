@@ -15,7 +15,8 @@ async def send_email(
     to_email: str,
     subject: str,
     html_content: str,
-    from_email: str = MAIL_FROM
+    from_email: str = MAIL_FROM,
+    reply_to: Optional[str] = None
 ):
     """Generic function to send email asynchronously via SendGrid"""
 
@@ -26,6 +27,9 @@ async def send_email(
         html_content=html_content
     )
 
+    if reply_to:
+        message.reply_to = reply_to
+        
     def send():
         try:
             sg = SendGridAPIClient(SENDGRID_API_KEY)
