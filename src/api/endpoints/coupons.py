@@ -32,6 +32,14 @@ def list_all_active_coupons(
     service = CouponService(db)
     return service.list_all_active_coupons()
 
+@router.get("/customer", summary="List coupons available to a customer")
+def get_customer_coupons(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user)
+):
+    service = CouponService(db)
+    return service.list_coupons_for_customer(current_user.id)
+
 @router.post("/", response_model=CouponResponse)
 def create_new_coupon(
     coupon_data: CouponCreate,

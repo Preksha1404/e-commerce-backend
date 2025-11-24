@@ -5,6 +5,8 @@ from src.models.coupons import Coupon
 from src.schemas.coupons import CouponCreate, CouponUpdate
 from src.models.users import User
 from src.utils.coupons import generate_coupon_code
+from src.models.products import Product
+from src.models.orders import Cart, CartItem
 
 class CouponService:
     def __init__(self, db: Session):
@@ -38,6 +40,46 @@ class CouponService:
 
         return coupons
 
+    def list_coupons_for_customer(self, customer_id: int):
+        # Get admin active coupons
+        admin_coupons = (
+            self.db.query(Coupon)
+            .filter(
+                Coupon.user_id == 1,
+                Coupon.coupon_status == True
+            )
+            .all()
+        )
+
+        # Get seller IDs from customer's cart
+        seller_ids = (
+            self.db.query(Product.seller_id)
+            .join(CartItem, CartItem.product_id == Product.id)
+            .join(Cart, Cart.id == CartItem.cart_id)
+            .filter(Cart.user_id == customer_id)
+            .distinct()
+            .all()
+        )
+
+        seller_ids = [sid[0] for sid in seller_ids]
+
+        # Get seller coupons only for sellers in the cart
+        seller_coupons = []
+        if seller_ids:
+            seller_coupons = (
+                self.db.query(Coupon)
+                .filter(
+                    Coupon.coupon_status == True,
+                    Coupon.user_id.in_(seller_ids)
+                )
+                .all()
+            )
+
+        return {
+            "adminCoupons": admin_coupons,
+            "sellerCoupons": seller_coupons
+        }
+    
     def create_coupon(self, coupon_data: CouponCreate, current_user: User):
         if current_user.role not in ["admin", "seller"]:
             raise HTTPException(status_code=403, detail="Not authorized to create coupons")
