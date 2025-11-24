@@ -14,10 +14,10 @@ class LLMService:
 
     def summarize_reviews(self, product: Product, reviews: List[Review]) -> str:
         """
-        Summarize product reviews using Gemini AI.
+        Summarize product reviews using Gemini AI with HTML formatted output.
         """
         if not reviews:
-            return "No reviews available for this product."
+            return "<p>No reviews available for this product.</p>"
 
         # Prepare review text
         review_texts = []
@@ -31,6 +31,15 @@ class LLMService:
         Provide a concise summary highlighting key points, overall sentiment, common praises, and criticisms.
         Include average rating if possible.
 
+        Format your response in HTML with:
+        - Use <h2> for headings
+        - Use <strong> for emphasis
+        - Use <ul><li> for bullet lists or <ol><li> for numbered lists
+        - Use <blockquote> for important notes or quotes
+        - Use <p> for paragraphs
+        - Keep the HTML clean and properly structured
+        - Do NOT include <html>, <head>, or <body> tags, just the content
+
         Reviews:
         {reviews_text}
 
@@ -39,13 +48,18 @@ class LLMService:
 
         try:
             response = self.model.generate_content(prompt)
-            return response.text.strip()
+            # Clean up the response and handle escaped characters
+            cleaned_response = response.text.strip()
+            # Remove any markdown code blocks if present
+            if cleaned_response.startswith("```html"):
+                cleaned_response = cleaned_response.replace("```html", "").replace("```", "").strip()
+            return cleaned_response
         except Exception as e:
-            return f"Error generating summary: {str(e)}"
+            return f"<p>Error generating summary: {str(e)}</p>"
 
     def answer_question(self, product: Product, reviews: List[Review], question: str) -> str:
         """
-        Answer questions about the product using Gemini AI, based on product details and reviews.
+        Answer questions about the product using Gemini AI with HTML formatted output.
         """
         # Prepare product context
         product_context = f"""
@@ -71,6 +85,15 @@ class LLMService:
         Answer the following question about the product based on the provided product details and customer reviews.
         Be helpful, accurate, and concise. If the information is not available in the context, say so politely.
 
+        Format your response in HTML with:
+        - Use <h2> for headings
+        - Use <strong> for emphasis
+        - Use <ul><li> for bullet lists or <ol><li> for numbered lists
+        - Use <blockquote> for important notes or quotes
+        - Use <p> for paragraphs
+        - Keep the HTML clean and properly structured
+        - Do NOT include <html>, <head>, or <body> tags, just the content
+
         Product Details:
         {product_context}
 
@@ -84,6 +107,11 @@ class LLMService:
 
         try:
             response = self.model.generate_content(prompt)
-            return response.text.strip()
+            # Clean up the response and handle escaped characters
+            cleaned_response = response.text.strip()
+            # Remove any markdown code blocks if present
+            if cleaned_response.startswith("```html"):
+                cleaned_response = cleaned_response.replace("```html", "").replace("```", "").strip()
+            return cleaned_response
         except Exception as e:
-            return f"Error generating answer: {str(e)}"
+            return f"<p>Error generating answer: {str(e)}</p>"
