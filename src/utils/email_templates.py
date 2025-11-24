@@ -527,7 +527,7 @@ def user_block_status_template(full_name: str, is_blocked: bool):
           <div style="text-align:center; padding:25px;">
             <a href="{FRONTEND_URL}/login"
               style="background-color:#7B5C52; color:white; padding:12px 30px; border-radius:6px; text-decoration:none; font-size:16px; font-weight:bold;">
-              Visit Cartifyss
+              Visit Cartify
             </a>
           </div>
 
@@ -543,3 +543,18 @@ def user_block_status_template(full_name: str, is_blocked: bool):
     """
 
     return subject, html_content
+
+def contact_us_email_template(form):
+    html = f"""
+    <div style="font-family: Arial, sans-serif; padding: 20px;">
+        <h2>Contact Us Message</h2>
+
+        <p><strong>Name:</strong> {form.first_name} {form.last_name}</p>
+        <p><strong>Email:</strong> {form.email}</p>
+        <p><strong>Phone:</strong> {form.phone or "Not Provided"}</p>
+        <p><strong>Subject:</strong> {form.subject}</p>
+        <p><strong>Message:</strong><br>{form.message}</p>
+    </div>
+    """
+    subject = f"Contact Form: {form.subject}"
+    return subject, html

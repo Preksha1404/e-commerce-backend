@@ -6,7 +6,9 @@ from src.schemas.users import UserCreate, UserUpdate, UserResponse
 from src.utils.auth import get_current_active_user
 from src.services.user_service import UserService
 from src.services.email_service import send_email
-from src.utils.email_templates import user_block_status_template
+from src.utils.email_templates import user_block_status_template, contact_us_email_template
+from src.services.contact_service import ContactService
+from src.schemas.contact import ContactRequest
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
@@ -77,3 +79,15 @@ async def toggle_customer_block(
         "is_blocked": user.is_blocked,
         "message": f"User has been {'blocked' if user.is_blocked else 'unblocked'} and notified via email."
     }
+
+@router.post("/contact")
+async def contact_us(
+    form: ContactRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
+):
+    return await ContactService.submit_contact_form(
+        db=db,
+        form=form,
+        background_tasks=background_tasks
+    )
