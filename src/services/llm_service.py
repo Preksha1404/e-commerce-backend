@@ -60,7 +60,24 @@ class LLMService:
     def answer_question(self, product: Product, reviews: List[Review], question: str) -> str:
         """
         Answer questions about the product using Gemini AI with HTML formatted output.
+        Only provides detailed information when specifically requested.
         """
+        # First, check if this is a greeting or casual message
+        greeting_keywords = ['hi', 'hello', 'hey', 'hii', 'hiii', 'greetings', 'good morning', 'good afternoon', 'good evening']
+        question_lower = question.lower().strip()
+        
+        # Check if it's just a greeting (short message with greeting words)
+        if len(question_lower.split()) <= 3 and any(greeting in question_lower for greeting in greeting_keywords):
+            return f"""<p>Hello! 👋 How can I help you with the <strong>{product.name}</strong>?</p>
+<p>You can ask me:</p>
+<ul>
+<li>Questions about product features and specifications</li>
+<li>Customer reviews and feedback</li>
+<li>Price and availability</li>
+<li>Comparisons or recommendations</li>
+</ul>
+<p>Feel free to ask anything!</p>"""
+        
         # Prepare product context
         product_context = f"""
         Product Name: {product.name}
@@ -84,9 +101,14 @@ class LLMService:
         prompt = f"""
         Answer the following question about the product based on the provided product details and customer reviews.
         Be helpful, accurate, and concise. If the information is not available in the context, say so politely.
+        
+        IMPORTANT: 
+        - Only provide detailed product information if specifically asked
+        - For general questions, give focused answers without overwhelming details
+        - Don't provide full summaries unless explicitly requested (e.g., "summarize", "tell me everything", "what are all features")
 
         Format your response in HTML with:
-        - Use <h2> for headings
+        - Use <h2> for headings (only when necessary)
         - Use <strong> for emphasis
         - Use <ul><li> for bullet lists or <ol><li> for numbered lists
         - Use <blockquote> for important notes or quotes
