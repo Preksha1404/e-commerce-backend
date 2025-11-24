@@ -37,8 +37,10 @@ def login(credentials: UserLogin, response: Response, db: Session = Depends(get_
 
     res = JSONResponse(content=content)
 
-    res.set_cookie("access_token", access, httponly=True, secure=IS_PROD, samesite="None" if IS_PROD else "Lax", max_age= 24 * 60 * 60)
-    res.set_cookie("refresh_token", refresh, httponly=True, secure=IS_PROD, samesite="None" if IS_PROD else "Lax", max_age= 7 * 24 * 60 * 60)
+    res.set_cookie("access_token", access, httponly=True, secure=True, samesite="None", max_age= 24 * 60 * 60, path="/",
+    )
+    res.set_cookie("refresh_token", refresh, httponly=True, secure=True, samesite="None", max_age= 7 * 24 * 60 * 60, path="/",
+    )
 
     return res
 
