@@ -16,7 +16,7 @@ def password_reset_template(email: str, token: str):
       <body style="margin:0; padding:0; background-color:#EFEBE9; font-family:'Helvetica Neue', Arial, sans-serif; color:#7B5C52;">
         <div style="max-width:600px; margin:0 auto; background-color:white; border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
           <div style="background-color:#7B5C52; padding:20px; text-align:center;">
-            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" alt="Cartify Logo" width="120" />
+            <img src="https://res.cloudinary.com/duamb3iin/image/upload/cartify_logo.png" alt="Cartify Logo" width="120" />
           </div>
           <div style="padding:40px 30px; text-align:center;">
             <h2 style="color:#7B5C52;">Password Reset Request</h2>
@@ -45,7 +45,7 @@ def customer_welcome_template(full_name: str):
       <body style="margin:0; padding:0; background-color:#EFEBE9; font-family:'Helvetica Neue', Arial, sans-serif; color:#7B5C52;">
         <div style="max-width:600px; margin:0 auto; background-color:white; border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
           <div style="background-color:#7B5C52; padding:20px; text-align:center;">
-            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" alt="Cartify Logo" width="120" />
+            <img src="https://res.cloudinary.com/duamb3iin/image/upload/cartify_logo.png" alt="Cartify Logo" width="120" />
           </div>
 
           <div style="padding:40px 30px 20px 30px; text-align:center;">
@@ -88,7 +88,7 @@ def seller_welcome_template(full_name: str):
         <div style="max-width:600px; margin:0 auto; background-color:white; border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
           
           <div style="background-color:#7B5C52; padding:20px; text-align:center;">
-            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" width="120" />
+            <img src="https://res.cloudinary.com/duamb3iin/image/upload/cartify_logo.png" width="120" />
           </div>
 
           <div style="padding:40px 30px 20px 30px; text-align:center;">
@@ -131,7 +131,7 @@ def seller_verification_template(full_name: str, store_name: str, store_address:
         <div style="max-width:600px;margin:0 auto;background:white;border-radius:10px;overflow:hidden;border:1px solid #e0d6d3;">
           
           <div style="background-color:#7B5C52;padding:20px;text-align:center;">
-            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" width="120" />
+            <img src="https://res.cloudinary.com/duamb3iin/image/upload/cartify_logo.png" width="120" />
           </div>
 
           <div style="padding:40px 30px;">
@@ -174,7 +174,7 @@ def send_order_cancelled_email(user_email: str, user_name: str, order_id: int):
                 <p>Contact our support team if this was a mistake.</p>
 
                 <div style="margin-top:30px;text-align:center;">
-                    <a href="{FRONTEND_URL}/orders/{order_id}"
+                    <a href="{FRONTEND_URL}/profile/orders"
                        style="background-color:#7B5C52;color:white;padding:12px 24px;text-decoration:none;border-radius:6px;">
                        View Order Details
                     </a>
@@ -195,7 +195,7 @@ def send_order_cancelled_email(user_email: str, user_name: str, order_id: int):
 
 
 def _format_currency(amount: float) -> str:
-    return f"${amount:,.2f}"
+    return f"₹{amount:,.2f}"
 
 
 def _build_order_items_table(items: List[Dict[str, float]]) -> str:
@@ -242,12 +242,12 @@ def send_order_confirmation_email(
       <body style="margin:0; padding:0; background-color:#EFEBE9; font-family:'Helvetica Neue', Arial, sans-serif; color:#7B5C52;">
         <div style="max-width:640px; margin:0 auto; background-color:white; border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
           <div style="background-color:#7B5C52; padding:20px; text-align:center;">
-            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" alt="Cartify Logo" width="120" />
+            <img src="https://res.cloudinary.com/duamb3iin/image/upload/cartify_logo.png" alt="Cartify Logo" width="120" />
           </div>
 
           <div style="padding:35px;">
             <h2 style="margin-top:0;">Hi {user_name},</h2>
-            <p>Thank you for shopping with Cartify. Your order <strong>#{order_id}</strong> has been successfully placed.</p>
+            <p>Thank you for shopping with Cartify. Your order has been successfully placed.</p>
 
             <div style="margin-top:25px;">
               <h3 style="margin-bottom:10px;">Order Summary</h3>
@@ -279,7 +279,7 @@ def send_order_confirmation_email(
             </div>
 
             <div style="text-align:center; margin-top:30px;">
-              <a href="{FRONTEND_URL}/orders/{order_id}" style="background-color:#7B5C52; color:white; padding:12px 28px; border-radius:6px; text-decoration:none; font-weight:bold;">
+              <a href="{FRONTEND_URL}/profile/orders" style="background-color:#7B5C52; color:white; padding:12px 28px; border-radius:6px; text-decoration:none; font-weight:bold;">
                 Track Order
               </a>
             </div>
@@ -314,7 +314,7 @@ def send_order_delivered_email(
       <body style="margin:0; padding:0; background-color:#EFEBE9; font-family:'Helvetica Neue', Arial, sans-serif; color:#7B5C52;">
         <div style="max-width:640px; margin:0 auto; background-color:white; border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
           <div style="background-color:#7B5C52; padding:20px; text-align:center;">
-            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" alt="Cartify Logo" width="120" />
+            <img src="https://res.cloudinary.com/duamb3iin/image/upload/cartify_logo.png" alt="Cartify Logo" width="120" />
           </div>
 
           <div style="padding:35px;">
@@ -377,7 +377,7 @@ def seller_account_approved_template(full_name: str):
 
           <!-- Header -->
           <div style="background-color:#7B5C52; padding:20px; text-align:center;">
-            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" 
+            <img src="https://res.cloudinary.com/duamb3iin/image/upload/cartify_logo.png" 
                  alt="Cartify Logo" width="120" />
           </div>
 
@@ -442,7 +442,7 @@ def seller_account_rejected_template(full_name: str):
 
           <!-- Header -->
           <div style="background-color:#7B5C52; padding:20px; text-align:center;">
-            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" 
+            <img src="https://res.cloudinary.com/duamb3iin/image/upload/cartify_logo.png 
                  alt="Cartify Logo" width="120" />
           </div>
 
@@ -510,7 +510,7 @@ def user_block_status_template(full_name: str, is_blocked: bool):
 
           <!-- Header -->
           <div style="background-color:#7B5C52; padding:20px; text-align:center;">
-            <img src="https://e-commerce-backend-4-p9d1.onrender.com/static/cartify_logo.png" width="120" />
+            <img src="https://res.cloudinary.com/duamb3iin/image/upload/cartify_logo.png" width="120" />
           </div>
 
           <!-- Title -->
@@ -527,7 +527,7 @@ def user_block_status_template(full_name: str, is_blocked: bool):
           <div style="text-align:center; padding:25px;">
             <a href="{FRONTEND_URL}/login"
               style="background-color:#7B5C52; color:white; padding:12px 30px; border-radius:6px; text-decoration:none; font-size:16px; font-weight:bold;">
-              Visit Cartify
+              Visit Cartifyss
             </a>
           </div>
 

@@ -1,7 +1,8 @@
 from sqlalchemy.orm import Session
 from typing import List
-
+from fastapi import HTTPException, status
 from src.models.addresses import Address
+from src.models.orders import Order
 from src.schemas.addresses import AddressCreate, AddressUpdate, AddressOut
 
 
@@ -49,9 +50,33 @@ def update_address(db: Session, user_id: int, address_id: int, data: AddressUpda
 
 
 def delete_address(db: Session, user_id: int, address_id: int) -> None:
-    address = db.query(Address).filter(Address.id == address_id, Address.user_id == user_id).first()
+    # Check address exists and belongs to the user
+    address = (
+        db.query(Address)
+        .filter(Address.id == address_id, Address.user_id == user_id)
+        .first()
+    )
+
     if address is None:
-        raise LookupError("Address not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Address not found"
+        )
+
+    # Check if address is used in any order
+    address_in_orders = (
+        db.query(Order)
+        .filter(Order.address_id == address_id)
+        .first()
+    )
+
+    if address_in_orders:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This address is linked with existing orders and cannot be deleted."
+        )
+
+    # Safe to delete
     db.delete(address)
     db.commit()
 
