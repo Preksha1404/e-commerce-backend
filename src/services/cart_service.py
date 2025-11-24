@@ -7,7 +7,7 @@ from src.models.products import Product, ProductImage
 from src.schemas.cart import CartOut, CartItemOut
 from src.models.coupons import Coupon
 
-def _compute_totals(db: Session, items: List[CartItemOut], coupon: Optional["Coupon"] = None) -> (float, float, float):
+def _compute_totals(db: Session, items: List[CartItemOut], coupon: Optional["Coupon"] = None):
     subtotal = 0.0
 
     for item in items:
@@ -24,9 +24,9 @@ def _compute_totals(db: Session, items: List[CartItemOut], coupon: Optional["Cou
 
     discount = 0.0
     applied_coupon_code = None
+    message = None
 
     if coupon:
-        # Apply coupon only if subtotal >= minimum_value
         if not coupon.minimum_value or subtotal >= coupon.minimum_value:
             discount_type = getattr(coupon.discount_type, "value", coupon.discount_type)
             if discount_type == "flat":
@@ -35,14 +35,20 @@ def _compute_totals(db: Session, items: List[CartItemOut], coupon: Optional["Cou
                 discount = subtotal * ((coupon.discount_value or 0) / 100)
             applied_coupon_code = coupon.coupon_code
         else:
-            # Coupon not applicable due to minimum value
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Coupon '{coupon.coupon_code}' requires a minimum cart value of {coupon.minimum_value}. Current subtotal is {subtotal}."
+            message = (
+                f"Coupon '{coupon.coupon_code}' requires a minimum cart "
+                f"value of {coupon.minimum_value}. Current subtotal is {subtotal}."
             )
 
     total = max(0.0, subtotal - discount)
-    return float(subtotal), float(discount), float(total), applied_coupon_code
+
+    return {
+        "subtotal": float(subtotal),
+        "discount": float(discount),
+        "total": float(total),
+        "coupon": applied_coupon_code,
+        "message": message
+    }
 
 def _serialize_cart(db: Session, cart: Cart, coupon: Optional["Coupon"] = None) -> CartOut:
     item_models = (
@@ -80,9 +86,16 @@ def _serialize_cart(db: Session, cart: Cart, coupon: Optional["Coupon"] = None) 
             )
         )
 
-    subtotal, discount, total, applied_coupon_code  = _compute_totals(db, items, coupon=coupon)
-    return CartOut(items=items, subtotal=subtotal, discount=discount, total=total, coupon=applied_coupon_code)
+    totals = _compute_totals(db, items, coupon=coupon)
 
+    return CartOut(
+        items=items,
+        subtotal=totals["subtotal"],
+        discount=totals["discount"],
+        total=totals["total"],
+        coupon=totals["coupon"],
+        message=totals.get("message")
+    )
 
 def get_or_create_cart(db: Session, user_id: int) -> Cart:
     cart = db.query(Cart).filter(Cart.user_id == user_id, Cart.is_active == True).first()

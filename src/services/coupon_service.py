@@ -25,20 +25,6 @@ class CouponService:
 
         else:
             raise HTTPException(status_code=400, detail="Invalid role")
-    
-    def list_all_active_coupons(self):
-        """
-        Returns all active coupons of admin for customers.
-        """
-        coupons = (
-            self.db.query(Coupon)
-            .filter(Coupon.user_id == 1)
-            .filter(Coupon.coupon_status == True)
-            .limit(2)
-            .all()
-        )
-
-        return coupons
 
     def list_coupons_for_customer(self, customer_id: int):
         # Get admin active coupons
@@ -46,7 +32,8 @@ class CouponService:
             self.db.query(Coupon)
             .filter(
                 Coupon.user_id == 1,
-                Coupon.coupon_status == True
+                Coupon.coupon_status == True,
+                Coupon.used_count < Coupon.usage_limit
             )
             .all()
         )
@@ -70,7 +57,8 @@ class CouponService:
                 self.db.query(Coupon)
                 .filter(
                     Coupon.coupon_status == True,
-                    Coupon.user_id.in_(seller_ids)
+                    Coupon.user_id.in_(seller_ids),
+                    Coupon.used_count < Coupon.usage_limit
                 )
                 .all()
             )
