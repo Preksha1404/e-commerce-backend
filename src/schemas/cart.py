@@ -31,6 +31,7 @@ class CartOut(BaseModel):
     discount: float
     total: float
     coupon: Optional[str] = None
+    message: Optional[str] = None
 
 
 class MessageResponse(BaseModel):

@@ -6,7 +6,7 @@ def update_order_overall_status(order_id: int, db: Session):
     Updates the overall order status based on its items' statuses.
     Logic:
       - If all items are DELIVERED → Order = DELIVERED
-      - Else if any item is SHIPPED → Order = SHIPPED
+      - Else if all items are SHIPPED → Order = SHIPPED
       - Else if all items are CANCELLED → Order = CANCELLED
       - Else → Order = PENDING
     """
@@ -22,7 +22,7 @@ def update_order_overall_status(order_id: int, db: Session):
 
     if all(s == OrderStatus.DELIVERED for s in item_statuses):
         order.status = OrderStatus.DELIVERED
-    elif any(s == OrderStatus.SHIPPED for s in item_statuses):
+    elif all(s == OrderStatus.SHIPPED for s in item_statuses):
         order.status = OrderStatus.SHIPPED
     elif all(s == OrderStatus.CANCELLED for s in item_statuses):
         order.status = OrderStatus.CANCELLED
