@@ -65,7 +65,7 @@ class LLMService:
         product_context = f"""
         Product Name: {product.name}
         Description: {product.description or 'No description available'}
-        Price: ${product.price}
+        Price: ₹{product.price:,.2f}
         Category: {product.category.name if product.category else 'N/A'}
         Stock: {product.stock}
         """
