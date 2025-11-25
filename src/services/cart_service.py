@@ -26,7 +26,9 @@ def _compute_totals(db: Session, items: List[CartItemOut], coupon: Optional["Cou
     applied_coupon_code = None
     message = None
 
-    if coupon:
+    if subtotal == 0:
+        message = "Your cart is empty."
+    elif coupon:
         if not coupon.minimum_value or subtotal >= coupon.minimum_value:
             discount_type = getattr(coupon.discount_type, "value", coupon.discount_type)
             if discount_type == "flat":
@@ -86,6 +88,16 @@ def _serialize_cart(db: Session, cart: Cart, coupon: Optional["Coupon"] = None) 
             )
         )
 
+    if not items:
+        return CartOut(
+            items=[],
+            subtotal=0.0,
+            discount=0.0,
+            total=0.0,
+            coupon=None,
+            message="Your cart is empty."
+        )
+    
     totals = _compute_totals(db, items, coupon=coupon)
 
     return CartOut(
