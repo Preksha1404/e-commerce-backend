@@ -1,4 +1,4 @@
-import os
+﻿import os
 from datetime import datetime
 from typing import List, Dict, Optional
 
@@ -558,3 +558,99 @@ def contact_us_email_template(form):
     """
     subject = f"Contact Form: {form.subject}"
     return subject, html
+
+
+def newsletter_subscription_confirmation_template(user_name: str):
+    """Template for newsletter subscription confirmation email"""
+    subject = "Welcome to Cartify Newsletter – Subscription Confirmed!"
+    
+    html_content = f"""
+    <html>
+      <body style="margin:0; padding:0; background-color:#EFEBE9; font-family:'Helvetica Neue', Arial, sans-serif; color:#7B5C52;">
+        <div style="max-width:600px; margin:0 auto; background-color:white; border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
+          <div style="background-color:#7B5C52; padding:20px; text-align:center;">
+            <img src="https://res.cloudinary.com/duamb3iin/image/upload/cartify_logo.png" alt="Cartify Logo" width="120" />
+          </div>
+
+          <div style="padding:40px 30px; text-align:center;">
+            <h2 style="color:#7B5C52;">Welcome to Cartify Newsletter!</h2>
+            <p style="font-size:16px;">Hi <strong>{user_name}</strong>,</p>
+            <p>Thank you for subscribing to our newsletter. You will now receive exclusive updates about new coupons, special offers, and amazing deals!</p>
+          </div>
+
+          <div style="padding:0 30px 20px 30px; line-height:1.8;">
+            <h3 style="color:#7B5C52;">What to expect:</h3>
+            <ul>
+              <li>✉️ Exclusive coupon codes for subscribers only</li>
+              <li>🎁 Special discounts and seasonal offers</li>
+              <li>🔔 Early access to new product launches</li>
+              <li>📱 Tips and updates about your favorite products</li>
+            </ul>
+          </div>
+
+          <div style="padding:30px; text-align:center;">
+            <p style="font-size:14px; color:#999;">You can unsubscribe anytime by clicking the link in any of our emails.</p>
+          </div>
+
+          <div style="background-color:#EFEBE9; padding:20px; text-align:center; font-size:13px; color:#7B5C52;">
+            <p>© {datetime.now().year} Cartify. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+    return subject, html_content
+
+
+def coupon_notification_template(user_name: str, coupon_code: str, coupon_name: str, discount_value: float, discount_type: str, expiry_date: str, coupon_description: str = None):
+    """Template for coupon notification email to newsletter subscribers"""
+    subject = f"🎉 New Coupon Just Dropped: {coupon_code} – Don't Miss {discount_value}% Off!"
+    
+    # Handle both string and enum types for discount_type
+    discount_type_str = discount_type.value if hasattr(discount_type, 'value') else str(discount_type).lower()
+    discount_display = f"{discount_value}% OFF" if discount_type_str in ["percent", "percentage"] else f"₹{discount_value} OFF"
+    
+    html_content = f"""
+    <html>
+      <body style="margin:0; padding:0; background-color:#EFEBE9; font-family:'Helvetica Neue', Arial, sans-serif; color:#7B5C52;">
+        <div style="max-width:600px; margin:0 auto; background-color:white; border-radius:10px; overflow:hidden; border:1px solid #e0d6d3;">
+          <div style="background-color:#7B5C52; padding:20px; text-align:center;">
+            <img src="https://res.cloudinary.com/duamb3iin/image/upload/cartify_logo.png" alt="Cartify Logo" width="120" />
+          </div>
+
+          <div style="padding:40px 30px; text-align:center;">
+            <h1 style="color:#7B5C52; font-size:32px;">🎉 Exclusive Offer!</h1>
+            <p style="font-size:18px;">Hi <strong>{user_name}</strong>,</p>
+            <p>We have just created a brand new coupon, and as a valued newsletter subscriber, you're among the first to know! 🎉
+            <p>Use the code below and enjoy this exclusive offer:</p>
+          </div>
+
+          <div style="margin:30px; padding:25px; background-color:#f9f4f2; border-radius:8px; text-align:center; border:2px solid #7B5C52;">
+            <h2 style="color:#7B5C52; margin-top:0;">{coupon_name}</h2>
+            <p style="font-size:14px; color:#999;">{coupon_description or ''}</p>
+            <div style="margin:20px 0;">
+              <p style="font-size:28px; color:#7B5C52; margin:10px 0;"><strong>{discount_display}</strong></p>
+              <p style="font-size:24px; color:#999; margin:10px 0; font-family:monospace; letter-spacing:2px;"><strong>{coupon_code}</strong></p>
+            </div>
+            <p style="font-size:14px; color:#d9534f;">Valid until: <strong>{expiry_date}</strong></p>
+          </div>
+
+          <div style="padding:0 30px 20px 30px; text-align:center;">
+            <a href="{FRONTEND_URL}" style="background-color:#7B5C52; color:white; padding:12px 30px; border-radius:6px; text-decoration:none; font-size:16px; font-weight:bold;">
+              Shop Now
+            </a>
+          </div>
+
+          <div style="padding:20px 30px; background-color:#f9f4f2; font-size:14px; color:#7B5C52; line-height:1.6;">
+            <p><strong>How to use:</strong> Apply coupon code <strong>{coupon_code}</strong> at checkout to get your discount!</p>
+          </div>
+
+          <div style="background-color:#EFEBE9; padding:20px; text-align:center; font-size:13px; color:#7B5C52;">
+            <p>Happy shopping!</p>
+            <p>© {datetime.now().year} Cartify. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+    return subject, html_content
