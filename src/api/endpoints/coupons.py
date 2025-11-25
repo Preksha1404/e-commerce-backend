@@ -5,10 +5,11 @@
 # PATCH	--> /coupons/{coupon_id}	--> Update coupon	(Admin/Seller)
 # DELETE--> /coupons/{coupon_id}	--> Delete or deactivate coupon	(Admin/Seller)
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, BackgroundTasks
 from sqlalchemy.orm import Session
 
 from src.services.coupon_service import CouponService
+from src.services.newsletter_service import notify_subscribers
 from src.schemas.coupons import CouponCreate, CouponUpdate, CouponResponse
 from src.core.database import get_db
 from src.utils.auth import get_current_active_user
@@ -36,11 +37,30 @@ def get_customer_coupons(
 @router.post("/", response_model=CouponResponse)
 def create_new_coupon(
     coupon_data: CouponCreate,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ):
+    import logging
+    logger = logging.getLogger(__name__)
+    
+    logger.info(f"Creating coupon - user role: {current_user.role}, user_id: {current_user.id}")
     service = CouponService(db)
-    return service.create_coupon(coupon_data, current_user)
+    new_coupon = service.create_coupon(coupon_data, current_user)
+    logger.info(f"Coupon created: {new_coupon.coupon_code}")
+    
+    # Notify newsletter subscribers only when admin creates a coupon
+    if current_user.role == "admin":
+        logger.info(f"Admin detected, triggering newsletter notification for coupon {new_coupon.coupon_code}")
+        try:
+            notify_subscribers(db, new_coupon, background_tasks)
+            logger.info(f"Successfully triggered notify_subscribers for coupon {new_coupon.coupon_code}")
+        except Exception as e:
+            logger.error(f"Error triggering notify_subscribers: {str(e)}", exc_info=True)
+    else:
+        logger.info(f"Non-admin user, skipping newsletter notification")
+    
+    return new_coupon
 
 @router.get("/{coupon_id}", response_model=CouponResponse)
 def get_coupon_details(

@@ -1,6 +1,7 @@
 from fastapi import FastAPI
+import logging
 from src.core.database import engine, Base
-from src.api.endpoints import users, auth, sellers, products, profile, cart, addresses, payments, orders, user_orders, seller_orders, coupons, review, invoice, seller_analytics, analytics, notifications, wishlist
+from src.api.endpoints import users, auth, sellers, products, profile, cart, addresses, payments, orders, user_orders, seller_orders, coupons, review, invoice, seller_analytics, analytics, notifications, wishlist, newsletter
 from src.websockets.seller_notifications_ws import router as seller_notification_ws_router
 from src.core.seed import seed_admin, seed_default_category
 from contextlib import asynccontextmanager  
@@ -25,6 +26,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+# enable info logging for debug visibility
+logging.basicConfig(level=logging.INFO)
 
 origins = [
     "http://localhost:5173",
@@ -78,3 +82,4 @@ app.include_router(analytics.router)
 app.include_router(notifications.router)
 app.include_router(wishlist.router)
 app.include_router(seller_notification_ws_router)
+app.include_router(newsletter.router)
