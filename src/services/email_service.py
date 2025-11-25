@@ -16,7 +16,7 @@ MAIL_FROM = os.getenv("MAIL_FROM")
 logger.info(f"SendGrid API Key configured: {bool(SENDGRID_API_KEY)}")
 logger.info(f"Mail from address: {MAIL_FROM}")
 
-def send_email(
+async def send_email(
     background_tasks: Optional[BackgroundTasks],
     to_email: str,
     subject: str,
