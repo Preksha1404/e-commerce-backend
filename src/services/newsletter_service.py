@@ -44,7 +44,7 @@ def list_subscribers(db: Session, active_only: bool = True, limit: int = 100, of
 async def send_subscription_confirmation_email(background_tasks: BackgroundTasks, email: str, user_name: str = "Subscriber"):
     """Send subscription confirmation email to newly subscribed user"""
     try:
-        subject, html = newsletter_subscription_confirmation_template(user_name)
+        subject, html = newsletter_subscription_confirmation_template(user_name, email)
         logger.info(f"Sending subscription confirmation email to {email}")
         await send_email(background_tasks, email, subject, html)
         logger.info(f"Subscription confirmation email queued for {email}")
@@ -86,6 +86,7 @@ async def notify_subscribers(db: Session, coupon: object, background_tasks: Back
             try:
                 logger.info(f"Preparing email for subscriber: {s.email}")
                 subject, html = coupon_notification_template(
+                    email=s.email,
                     user_name=(s.email.split('@')[0] if s.email else 'Subscriber'),
                     coupon_code=coupon_code,
                     coupon_name=coupon_name,
