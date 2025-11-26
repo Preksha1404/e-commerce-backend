@@ -41,18 +41,18 @@ def list_subscribers(db: Session, active_only: bool = True, limit: int = 100, of
     return q.offset(offset).limit(limit).all()
 
 
-def send_subscription_confirmation_email(background_tasks: BackgroundTasks, email: str, user_name: str = "Subscriber"):
+async def send_subscription_confirmation_email(background_tasks: BackgroundTasks, email: str, user_name: str = "Subscriber"):
     """Send subscription confirmation email to newly subscribed user"""
     try:
         subject, html = newsletter_subscription_confirmation_template(user_name)
         logger.info(f"Sending subscription confirmation email to {email}")
-        send_email(background_tasks, email, subject, html)
+        await send_email(background_tasks, email, subject, html)
         logger.info(f"Subscription confirmation email queued for {email}")
     except Exception as e:
         logger.error(f"Error sending subscription confirmation email to {email}: {str(e)}")
 
 
-def notify_subscribers(db: Session, coupon: object, background_tasks: BackgroundTasks, batch_size: int = 50):
+async def notify_subscribers(db: Session, coupon: object, background_tasks: BackgroundTasks, batch_size: int = 50):
     """Send coupon notification emails to all active subscribers"""
     logger.info("=" * 60)
     logger.info("notify_subscribers: STARTING NOTIFICATION PROCESS")
@@ -94,7 +94,7 @@ def notify_subscribers(db: Session, coupon: object, background_tasks: Background
                     expiry_date=expiry_date,
                     coupon_description=coupon_description
                 )
-                send_email(background_tasks, s.email, subject, html)
+                await send_email(background_tasks, s.email, subject, html)
                 queued += 1
                 logger.info(f"Queued coupon email for subscriber: {s.email}")
             except Exception as e:

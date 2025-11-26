@@ -13,7 +13,7 @@ router = APIRouter(prefix="/newsletter", tags=["Newsletter"])
 
 
 @router.post('/subscribe', response_model=NewsletterSubscriberOut)
-def subscribe(
+async def subscribe(
     payload: NewsletterSubscribe,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -26,7 +26,7 @@ def subscribe(
     # Send confirmation email
     try:
         logger.info(f"Sending subscription confirmation email to {payload.email}")
-        send_subscription_confirmation_email(background_tasks, payload.email, current_user.full_name or "Subscriber")
+        await send_subscription_confirmation_email(background_tasks, payload.email, current_user.full_name or "Subscriber")
     except Exception as e:
         logger.error(f"Failed to send confirmation email: {str(e)}")
         # don't block subscription if email fails

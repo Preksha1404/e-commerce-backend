@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import List, Dict, Optional
 
 FRONTEND_URL = os.getenv("FRONTEND_URL")
+ADMIN_EMAIL = os.getenv("ADMIN_EMAIL")
 RESET_TOKEN_EXPIRE_MINUTES = os.getenv("RESET_TOKEN_EXPIRE_MINUTES")
 
 def password_reset_template(email: str, token: str):
@@ -589,7 +590,12 @@ def newsletter_subscription_confirmation_template(user_name: str):
           </div>
 
           <div style="padding:30px; text-align:center;">
-            <p style="font-size:14px; color:#999;">You can unsubscribe anytime by clicking the link in any of our emails.</p>
+            <p style="font-size:14px; color:#999;">
+              You can unsubscribe anytime by 
+              <a href="{FRONTEND_URL}/newsletter/unsubscribe?email={ADMIN_EMAIL}" style="color:#7B5C52; text-decoration:underline;">
+                clicking here
+              </a>.
+            </p>
           </div>
 
           <div style="background-color:#EFEBE9; padding:20px; text-align:center; font-size:13px; color:#7B5C52;">
@@ -643,6 +649,15 @@ def coupon_notification_template(user_name: str, coupon_code: str, coupon_name: 
 
           <div style="padding:20px 30px; background-color:#f9f4f2; font-size:14px; color:#7B5C52; line-height:1.6;">
             <p><strong>How to use:</strong> Apply coupon code <strong>{coupon_code}</strong> at checkout to get your discount!</p>
+          </div>
+
+          <div style="padding:20px 30px; text-align:center; font-size:14px; color:#999;">
+            <p>
+              Don't want to receive coupon updates?  
+              <a href="{FRONTEND_URL}/newsletter/unsubscribe?email={ADMIN_EMAIL}" style="color:#7B5C52; text-decoration:underline;">
+                Unsubscribe here
+              </a>.
+            </p>
           </div>
 
           <div style="background-color:#EFEBE9; padding:20px; text-align:center; font-size:13px; color:#7B5C52;">
