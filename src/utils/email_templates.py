@@ -560,7 +560,7 @@ def contact_us_email_template(form):
     return subject, html
 
 
-def newsletter_subscription_confirmation_template(user_name: str):
+def newsletter_subscription_confirmation_template(user_name: str, email: str):
     """Template for newsletter subscription confirmation email"""
     subject = "Welcome to Cartify Newsletter – Subscription Confirmed!"
     
@@ -589,7 +589,12 @@ def newsletter_subscription_confirmation_template(user_name: str):
           </div>
 
           <div style="padding:30px; text-align:center;">
-            <p style="font-size:14px; color:#999;">You can unsubscribe anytime by clicking the link in any of our emails.</p>
+            <p style="font-size:14px; color:#999;">
+              You can unsubscribe anytime by 
+              <a href="{FRONTEND_URL}/newsletter/unsubscribe?email={email}" style="color:#7B5C52; text-decoration:underline;">
+                clicking here
+              </a>.
+            </p>
           </div>
 
           <div style="background-color:#EFEBE9; padding:20px; text-align:center; font-size:13px; color:#7B5C52;">
@@ -602,9 +607,9 @@ def newsletter_subscription_confirmation_template(user_name: str):
     return subject, html_content
 
 
-def coupon_notification_template(user_name: str, coupon_code: str, coupon_name: str, discount_value: float, discount_type: str, expiry_date: str, coupon_description: str = None):
+def coupon_notification_template(email:str, user_name: str, coupon_code: str, coupon_name: str, discount_value: float, discount_type: str, expiry_date: str, coupon_description: str = None):
     """Template for coupon notification email to newsletter subscribers"""
-    subject = f"🎉 New Coupon Just Dropped: {coupon_code} – Don't Miss {discount_value}% Off!"
+    subject = f"🎉 New Coupon Just Dropped: {coupon_code} – Don't Miss this offer!"
     
     # Handle both string and enum types for discount_type
     discount_type_str = discount_type.value if hasattr(discount_type, 'value') else str(discount_type).lower()
@@ -643,6 +648,15 @@ def coupon_notification_template(user_name: str, coupon_code: str, coupon_name: 
 
           <div style="padding:20px 30px; background-color:#f9f4f2; font-size:14px; color:#7B5C52; line-height:1.6;">
             <p><strong>How to use:</strong> Apply coupon code <strong>{coupon_code}</strong> at checkout to get your discount!</p>
+          </div>
+
+          <div style="padding:20px 30px; text-align:center; font-size:14px; color:#999;">
+            <p>
+              Don't want to receive coupon updates?  
+              <a href="{FRONTEND_URL}/newsletter/unsubscribe?email={email}" style="color:#7B5C52; text-decoration:underline;">
+                Unsubscribe here
+              </a>.
+            </p>
           </div>
 
           <div style="background-color:#EFEBE9; padding:20px; text-align:center; font-size:13px; color:#7B5C52;">

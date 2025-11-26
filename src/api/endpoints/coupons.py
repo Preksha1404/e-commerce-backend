@@ -35,7 +35,7 @@ def get_customer_coupons(
     return service.list_coupons_for_customer(current_user.id)
 
 @router.post("/", response_model=CouponResponse)
-def create_new_coupon(
+async def create_new_coupon(
     coupon_data: CouponCreate,
     background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
@@ -53,7 +53,7 @@ def create_new_coupon(
     if current_user.role == "admin":
         logger.info(f"Admin detected, triggering newsletter notification for coupon {new_coupon.coupon_code}")
         try:
-            notify_subscribers(db, new_coupon, background_tasks)
+            await notify_subscribers(db, new_coupon, background_tasks)
             logger.info(f"Successfully triggered notify_subscribers for coupon {new_coupon.coupon_code}")
         except Exception as e:
             logger.error(f"Error triggering notify_subscribers: {str(e)}", exc_info=True)
