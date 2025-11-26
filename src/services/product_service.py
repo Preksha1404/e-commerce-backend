@@ -10,7 +10,7 @@ from src.models.products import Category
 from src.models.review import Review
 from src.schemas.products import AddStockRequest, BulkUploadResponse, BulkUploadRow
 from src.utils.bulk_upload import process_upload_file, validate_row, save_products_batch, generate_bulk_upload_template
-from src.utils.functions import generate_slug, generate_simple_sku
+from src.utils.functions import generate_slug, generate_simple_sku, generate_unique_slug
 
 class ProductService:
     def __init__(self, db: Session, current_user):
