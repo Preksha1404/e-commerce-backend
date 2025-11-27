@@ -11,6 +11,10 @@ import hashlib
 import random
 import string
 from jose import JWTError
+import re
+from unidecode import unidecode
+from src.models.products import Product
+from sqlalchemy.orm import Session
 
 load_dotenv()
 
@@ -77,6 +81,24 @@ def generate_reset_token() -> str:
 
 def hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest() # Hash the token using SHA-256
+
+def normalize_slug(text: str) -> str:
+    text = unidecode(text)  # Handle unicode chars (é → e, ñ → n)
+    text = text.lower().strip()
+    text = re.sub(r'[^a-z0-9]+', '-', text)  # Replace special chars with hyphen
+    text = re.sub(r'-+', '-', text)          # Collapse multiple dashes
+    return text.strip('-')
+
+def generate_unique_slug(name: str, db: Session) -> str:
+    base_slug = normalize_slug(name)
+    slug = base_slug
+    count = 1
+
+    while db.query(Product).filter(Product.slug == slug).first():
+        slug = f"{base_slug}-{count}"
+        count += 1
+
+    return slug
 
 def generate_slug(text: str) -> str:
     """Generate a URL-friendly slug from text"""

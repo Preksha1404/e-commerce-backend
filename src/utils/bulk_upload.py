@@ -5,7 +5,7 @@ from fastapi import UploadFile
 import logging
 from sqlalchemy.orm import Session
 from src.models.products import Product, Category, ProductImage
-from src.utils.functions import generate_slug, generate_simple_sku
+from src.utils.functions import generate_slug, generate_simple_sku, generate_unique_slug
 import io
 
 logger = logging.getLogger(__name__)
@@ -112,7 +112,7 @@ def save_products_batch(
                 db_prod = Product(
                     **{k: v for k, v in product_dict.items() if k in Product.__table__.columns.keys()},
                     seller_id=seller_id,
-                    slug=generate_slug(p.name)
+                    slug=generate_unique_slug(p.name, db)
                 )
                 # Create product images
                 for position, image_url in enumerate(images):
