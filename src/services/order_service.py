@@ -127,18 +127,18 @@ class OrderService:
         response.coupon_code = coupon.coupon_code if coupon else None
 
         # Trigger Seller Notifications ONLY IF PAYMENT SUCCEEDED
-        if order.payment_status == PaymentStatus.PAID:
-            notif_service = NotificationService(self.db)
-            seller_ids = set(item.seller_id for item in order_items)
+        # if order.payment_status == PaymentStatus.PAID:
+        notif_service = NotificationService(self.db)
+        seller_ids = set(item.seller_id for item in order_items)
 
-            product_map = {
+        product_map = {
                 p.id: p.sku
                 for p in self.db.query(Product).filter(
                     Product.id.in_([i.product_id for i in order_items])
                 ).all()
             }
 
-            for seller_id in seller_ids:
+        for seller_id in seller_ids:
                 # Create notification in DB
                 notification = notif_service.create_seller_notification(
                     seller_id=seller_id,
