@@ -384,10 +384,7 @@ class SellerAnalyticsService:
             .filter(
                 OrderItem.seller_id == seller_id,
                 Order.payment_status == OrderPaymentStatus.PAID,
-                OrderItem.status.in_([
-                    OrderStatus.PENDING,
-                    OrderStatus.SHIPPED
-                ])
+                OrderItem.status == OrderStatus.PENDING
             )
             .scalar() or 0
         )
