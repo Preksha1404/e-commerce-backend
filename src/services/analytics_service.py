@@ -552,7 +552,7 @@ class SellerAnalyticsService:
                 func.coalesce(func.sum(OrderItem.quantity), 0).label("units_sold")
             )
             .outerjoin(OrderItem, Product.id == OrderItem.product_id)
-            .filter(Product.seller_id == seller_id)
+            .filter(Product.seller_id == seller_id, Product.is_deleted == False)
             .group_by(Product.id)
             .order_by(desc(func.coalesce(func.sum(OrderItem.quantity), 0)))
             .limit(limit)
