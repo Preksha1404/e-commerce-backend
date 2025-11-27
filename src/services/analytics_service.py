@@ -390,10 +390,10 @@ class SellerAnalyticsService:
         )
 
         # Products stats
-        total_products = int(self.db.query(func.coalesce(func.count(Product.id), 0)).filter(Product.seller_id == seller_id).scalar() or 0)
-        active_products = int(self.db.query(func.coalesce(func.count(Product.id), 0)).filter(Product.seller_id == seller_id, Product.status == "approved").scalar() or 0)
-        pending_products = int(self.db.query(func.coalesce(func.count(Product.id), 0)).filter(Product.seller_id == seller_id, Product.status == "pending").scalar() or 0)
-        low_stock_items = int(self.db.query(func.coalesce(func.count(Product.id), 0)).filter(Product.seller_id == seller_id, Product.stock < 10).scalar() or 0)
+        total_products = int(self.db.query(func.coalesce(func.count(Product.id), 0)).filter(Product.seller_id == seller_id, Product.is_deleted == False).scalar() or 0)
+        active_products = int(self.db.query(func.coalesce(func.count(Product.id), 0)).filter(Product.seller_id == seller_id, Product.status == "approved", Product.is_deleted == False).scalar() or 0)
+        pending_products = int(self.db.query(func.coalesce(func.count(Product.id), 0)).filter(Product.seller_id == seller_id, Product.status == "pending", Product.is_deleted == False).scalar() or 0)
+        low_stock_items = int(self.db.query(func.coalesce(func.count(Product.id), 0)).filter(Product.seller_id == seller_id, Product.is_active == True, Product.stock < 10, Product.is_deleted == False).scalar() or 0)
 
         # Coupon usage: count of Orders that used a coupon issued by seller
         coupon_usage = int(
@@ -504,7 +504,7 @@ class SellerAnalyticsService:
                 func.coalesce(func.sum(OrderItem.quantity), 0).label("total_sold")
             )
             .join(OrderItem, OrderItem.product_id == Product.id)
-            .filter(OrderItem.seller_id == seller_id)
+            .filter(OrderItem.seller_id == seller_id, Product.is_deleted == False)
             .group_by(Product.id, Product.sku)
             .order_by(desc(func.sum(OrderItem.quantity)))
             .limit(limit)
@@ -537,7 +537,7 @@ class SellerAnalyticsService:
     def low_stock_items(self, seller_id: int, limit: int = 5) -> List[Dict[str, Any]]:
         low_stock_products = self.db.query(
             Product.id, Product.name, Product.sku, Product.stock
-        ).filter(Product.seller_id == seller_id, Product.stock < 10).order_by(Product.stock.asc()).limit(limit).all()
+        ).filter(Product.seller_id == seller_id, Product.stock < 10, Product.is_deleted == False).order_by(Product.stock.asc()).limit(limit).all()
 
         return [{"product_id": pid, "product_name": name, "sku": sku, "stock": int(stock)} for pid, name, sku, stock in low_stock_products]
 
