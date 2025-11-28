@@ -16,21 +16,28 @@ router = APIRouter(prefix="/newsletter", tags=["Newsletter"])
 async def subscribe(
     payload: NewsletterSubscribe,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_active_user)
+    db: Session = Depends(get_db)
 ):
-    """Subscribe logged-in user to newsletter and send confirmation email"""
-    logger.info(f"Newsletter subscribe request from user {current_user.id} with email {payload.email}")
-    sub = svc_subscribe(db, payload.email, current_user.id)
-    logger.info(f"User {current_user.id} subscribed to newsletter")
+    """Subscribe any user to newsletter"""
+    logger.info(f"Newsletter subscribe request for email {payload.email}")
+
+    # User ID is always None since login is not required
+    sub = svc_subscribe(db, payload.email, user_id=None)
+    logger.info(f"Email {payload.email} subscribed to newsletter")
+
+    # Always send with default name
+    user_name = "Subscriber"
+
     # Send confirmation email
     try:
-        logger.info(f"Sending subscription confirmation email to {payload.email}")
-        await send_subscription_confirmation_email(background_tasks, payload.email, current_user.full_name or "Subscriber")
+        await send_subscription_confirmation_email(
+            background_tasks,
+            payload.email,
+            user_name
+        )
     except Exception as e:
         logger.error(f"Failed to send confirmation email: {str(e)}")
-        # don't block subscription if email fails
-        pass
+
     return sub
 
 
